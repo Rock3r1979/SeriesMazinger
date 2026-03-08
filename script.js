@@ -84,15 +84,24 @@ const PLATAFORMAS_PREF = [
 const AVATARES = ['👤', '🎬', '📺', '🦸', '🐉', '👾', '🤖', '👨‍🎤', '👩‍🎤', '🧙', '🦹', '🧛'];
 
 // ============================================
+// DETECTAR ANDROID
+// ============================================
+const esAndroid = /Android/i.test(navigator.userAgent);
+
+// ============================================
 // INICIALIZACIÓN
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const perfilData = params.get('perfil');
+  const perfilData = params.get('p'); // Cambiado a p para más corto
+  const listaData = params.get('d');   // Cambiado a d para más corto
   
   if (perfilData) {
     cargarPerfilCompartido(perfilData);
     mostrarSeccion('perfil');
+  } else if (listaData) {
+    cargarListaDesdeURL(listaData);
+    mostrarSeccion('miLista');
   } else {
     cargarPeliculas(true);
     cargarSeries(true);
@@ -108,9 +117,30 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAvatarSelector();
   cargarBio();
   
-  cargarListaDesdeURL();
   comprobarRecordatorios();
+  
+  // Configurar manejador táctil para Android
+  if (esAndroid) {
+    configurarManejadorAndroid();
+  }
 });
+
+// ============================================
+// MANEJADOR ESPECÍFICO PARA ANDROID
+// ============================================
+function configurarManejadorAndroid() {
+  document.addEventListener('touchend', function(e) {
+    // Para el selector de listas
+    if (e.target.closest('.lista-opcion') && !e.target.closest('.lista-opcion[style*="opacity: 0.5"]')) {
+      e.preventDefault();
+      const opcion = e.target.closest('.lista-opcion');
+      const listaId = opcion.getAttribute('data-lista-id');
+      if (listaId) {
+        añadirALista(listaId);
+      }
+    }
+  }, { passive: false });
+}
 
 // ============================================
 // PERFIL COMPARTIDO (SOLO VISUALIZACIÓN)
@@ -120,18 +150,18 @@ function cargarPerfilCompartido(data) {
     const perfil = JSON.parse(decodeURIComponent(atob(data)));
     perfilCompartido = true;
     
-    document.getElementById('aliasActualDisplay').textContent = perfil.alias || 'Usuario';
-    document.getElementById('bioInput').value = perfil.bio || '';
+    document.getElementById('aliasActualDisplay').textContent = perfil.a || 'Usuario'; // a = alias
+    document.getElementById('bioInput').value = perfil.b || ''; // b = bio
     
     const span = document.getElementById('avatarEmoji');
     const img = document.getElementById('avatarPreview');
     
-    if (perfil.avatar && perfil.avatar.startsWith('data:image')) {
-      img.src = perfil.avatar;
+    if (perfil.av && perfil.av.startsWith('data:image')) { // av = avatar
+      img.src = perfil.av;
       img.style.display = 'block';
       span.style.display = 'none';
     } else {
-      span.textContent = perfil.avatar || '👤';
+      span.textContent = perfil.av || '👤';
       span.style.display = 'flex';
       img.style.display = 'none';
     }
@@ -145,11 +175,88 @@ function cargarPerfilCompartido(data) {
     document.getElementById('avatarEmojiSelector').style.display = 'none';
     document.querySelector('.avatar-actions').style.display = 'none';
     
-    mostrarNotificacion('👀 Estás viendo un perfil compartido - Modo solo lectura', 'info');
+    mostrarNotificacion('👀 Estás viendo un perfil compartido', 'info');
     
   } catch (e) {
-    mostrarNotificacion('Error al cargar perfil compartido', 'error');
+    mostrarNotificacion('Error al cargar perfil', 'error');
   }
+}
+
+// ============================================
+// CARGAR LISTA DESDE URL
+// ============================================
+function cargarListaDesdeURL(data) {
+  try {
+    const decoded = JSON.parse(decodeURIComponent(atob(data)));
+    const listas = getListas();
+    listas.push({
+      id: Date.now().toString(),
+      nombre: `Compartida: ${decoded.n || 'Lista'}`, // n = nombre
+      items: (decoded.i || []).map(id => ({ // i = ids
+        id: id,
+        title: 'Cargando...',
+        name: 'Cargando...',
+        poster_path: null,
+        vote_average: 0,
+        release_date: '',
+        first_air_date: '',
+        overview: '',
+        plataformas: [],
+        next_episode: null,
+        last_episode: null,
+        miPuntuacion: 0
+      })),
+      creada: new Date().toISOString()
+    });
+    guardarListas(listas);
+    mostrarNotificacion(`Lista de ${decoded.a || 'usuario'} cargada`, 'success');
+    
+    // Intentar cargar detalles de los items
+    cargarDetallesItemsCompartidos(listas[listas.length - 1]);
+    
+    window.history.replaceState({}, document.title, '/');
+  } catch (e) {
+    mostrarNotificacion('Error al cargar la lista', 'error');
+  }
+}
+
+async function cargarDetallesItemsCompartidos(lista) {
+  for (let i = 0; i < lista.items.length; i++) {
+    const item = lista.items[i];
+    try {
+      // Intentar como serie primero
+      let res = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
+      let data = await res.json();
+      
+      if (data.success === false) {
+        // Si no es serie, probar como película
+        res = await fetch(`${BASEURL}movie/${item.id}?api_key=${APIKEY}&language=es-ES`);
+        data = await res.json();
+      }
+      
+      item.title = data.title || data.name;
+      item.name = data.name || data.title;
+      item.poster_path = data.poster_path;
+      item.vote_average = data.vote_average || 0;
+      item.release_date = data.release_date || data.first_air_date || '';
+      item.first_air_date = data.first_air_date || data.release_date || '';
+      item.overview = data.overview || '';
+      
+      // Obtener plataformas
+      const tipo = data.title ? 'movie' : 'tv';
+      const platRes = await fetch(`${BASEURL}${tipo}/${item.id}/watch/providers?api_key=${APIKEY}`);
+      const platData = await platRes.json();
+      item.plataformas = (platData.results?.ES?.flatrate || []).map(p => ({
+        ...p,
+        logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+      }));
+      
+    } catch (e) {
+      console.error('Error cargando detalles:', e);
+    }
+  }
+  
+  renderListas();
 }
 
 // ============================================
@@ -166,7 +273,7 @@ window.addEventListener('scroll', () => {
     header.classList.remove('header-oculto');
   }
   lastScrollY = window.scrollY;
-});
+}, { passive: true });
 
 // ============================================
 // SCROLL INFINITO
@@ -193,7 +300,7 @@ window.addEventListener('scroll', () => {
       cargarMasAgenda();
     }
   }
-});
+}, { passive: true });
 
 // ============================================
 // SECCIONES
@@ -407,10 +514,6 @@ async function enriquecerConPlataformas(item, tipo) {
       const detalles = await detallesRes.json();
       item.next_episode_to_air = detalles.next_episode_to_air;
       item.last_episode_to_air = detalles.last_episode_to_air;
-      item.number_of_seasons = detalles.number_of_seasons;
-      item.number_of_episodes = detalles.number_of_episodes;
-      item.status = detalles.status;
-      item.networks = detalles.networks;
     }
   } catch {
     item.plataformas = [];
@@ -769,7 +872,7 @@ function eliminarLista(id) {
 }
 
 // ============================================
-// SELECTOR DE LISTAS MODAL
+// SELECTOR DE LISTAS MODAL - CORREGIDO PARA ANDROID
 // ============================================
 function mostrarSelectorListas() {
   if (!itemActual || perfilCompartido) return;
@@ -783,6 +886,8 @@ function mostrarSelectorListas() {
     
     const opcion = document.createElement('div');
     opcion.className = 'lista-opcion';
+    opcion.setAttribute('data-lista-id', lista.id);
+    opcion.setAttribute('data-ya-esta', yaEsta);
     opcion.innerHTML = `
       <span class="nombre">${lista.nombre}</span>
       <span class="contador">${lista.items.length} items</span>
@@ -790,9 +895,20 @@ function mostrarSelectorListas() {
     
     if (yaEsta) {
       opcion.style.opacity = '0.5';
+      opcion.style.pointerEvents = 'none';
       opcion.title = 'Ya está en esta lista';
     } else {
-      opcion.onclick = () => añadirALista(lista.id);
+      if (!esAndroid) {
+        // En Windows usar onclick
+        opcion.onclick = function(e) {
+          e.preventDefault();
+          const listaId = this.getAttribute('data-lista-id');
+          añadirALista(listaId);
+        };
+      } else {
+        // En Android usar event listener (ya configurado)
+        opcion.style.cursor = 'pointer';
+      }
     }
     
     selector.appendChild(opcion);
@@ -806,7 +922,7 @@ function cerrarSelectorListas() {
 }
 
 // ============================================
-// AÑADIR A LISTA - CON TODOS LOS DATOS
+// AÑADIR A LISTA
 // ============================================
 function añadirALista(listaId) {
   if (!itemActual || perfilCompartido) return;
@@ -866,7 +982,7 @@ function eliminarDeLista(itemId, listaId, event) {
 }
 
 // ============================================
-// RENDERIZAR LISTAS - CON LOGOS Y PRÓXIMOS EPISODIOS
+// RENDERIZAR LISTAS
 // ============================================
 function renderListas() {
   const listas = getListas();
@@ -974,7 +1090,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS - CON REDES SOCIALES
+// COMPARTIR LISTAS - MÁS CORTO
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -984,22 +1100,16 @@ async function compartirLista(listaId) {
     return;
   }
 
-  const alias = aliasActual || prompt("¿Con qué nombre quieres compartir?") || "Usuario";
-  
-  const primerosItems = lista.items.slice(0, 3).map(i => i.title || i.name).join(', ');
-  const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n${primerosItems}${lista.items.length > 3 ? '...' : ''}\n\nMira la lista completa en:`;
+  const alias = aliasActual || 'Usuario';
   
   const shareData = {
-    alias: alias,
-    nombre: lista.nombre,
-    items: lista.items.map(i => ({
-      id: i.id,
-      titulo: i.title || i.name
-    }))
+    a: alias,
+    n: lista.nombre,
+    i: lista.items.map(i => i.id)
   };
   
-  const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
-  const urlLarga = `https://seriestopia.vercel.app/?data=${compressed}`;
+  const compressed = btoa(JSON.stringify(shareData));
+  const urlLarga = `https://seriestopia.vercel.app/?d=${compressed}`;
   
   try {
     const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(urlLarga)}`);
@@ -1010,7 +1120,7 @@ async function compartirLista(listaId) {
         try {
           await navigator.share({
             title: `Lista: ${lista.nombre}`,
-            text: mensaje,
+            text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
             url: urlCorta
           });
           return;
@@ -1019,8 +1129,8 @@ async function compartirLista(listaId) {
         }
       }
       
-      await navigator.clipboard.writeText(`${mensaje}\n\n${urlCorta}`);
-      mostrarNotificacion('✅ Lista lista para compartir', 'success');
+      await navigator.clipboard.writeText(urlCorta);
+      mostrarNotificacion('✅ Enlace copiado', 'success');
     } else {
       throw new Error();
     }
@@ -1029,21 +1139,21 @@ async function compartirLista(listaId) {
       try {
         await navigator.share({
           title: `Lista: ${lista.nombre}`,
-          text: mensaje,
+          text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
           url: urlLarga
         });
       } catch (e) {
         if (e.name === 'AbortError') return;
-        copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+        copiarAlPortapapeles(urlLarga);
       }
     } else {
-      copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+      copiarAlPortapapeles(urlLarga);
     }
   }
 }
 
 // ============================================
-// COMPARTIR PERFIL - CON REDES SOCIALES
+// COMPARTIR PERFIL
 // ============================================
 async function compartirPerfil() {
   const alias = aliasActual || 'Usuario';
@@ -1052,15 +1162,13 @@ async function compartirPerfil() {
   const avatarCustom = localStorage.getItem('avatarCustom') || '';
   
   const shareData = {
-    alias: alias,
-    bio: localStorage.getItem('bio') || '',
-    avatar: avatarCustom || avatarEmoji
+    a: alias,
+    b: localStorage.getItem('bio') || '',
+    av: avatarCustom || avatarEmoji
   };
   
-  const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
-  const urlLarga = `https://seriestopia.vercel.app/?perfil=${compressed}`;
-  
-  const mensaje = `👤 *Perfil de ${alias} en SERIESTOPIA*\n📝 ${shareData.bio.substring(0, 50)}${shareData.bio.length > 50 ? '...' : ''}\n🎬 ${getListas().reduce((sum, l) => sum + l.items.length, 0)} items en listas\n\n`;
+  const compressed = btoa(JSON.stringify(shareData));
+  const urlLarga = `https://seriestopia.vercel.app/?p=${compressed}`;
   
   try {
     const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(urlLarga)}`);
@@ -1071,7 +1179,7 @@ async function compartirPerfil() {
         try {
           await navigator.share({
             title: `Perfil de ${alias}`,
-            text: mensaje,
+            text: `Mira mi perfil en SERIESTOPIA`,
             url: urlCorta
           });
           return;
@@ -1080,8 +1188,8 @@ async function compartirPerfil() {
         }
       }
       
-      await navigator.clipboard.writeText(`${mensaje}\n\n${urlCorta}`);
-      mostrarNotificacion('✅ Perfil listo para compartir', 'success');
+      await navigator.clipboard.writeText(urlCorta);
+      mostrarNotificacion('✅ Enlace copiado', 'success');
     } else {
       throw new Error();
     }
@@ -1090,15 +1198,15 @@ async function compartirPerfil() {
       try {
         await navigator.share({
           title: `Perfil de ${alias}`,
-          text: mensaje,
+          text: `Mira mi perfil en SERIESTOPIA`,
           url: urlLarga
         });
       } catch (e) {
         if (e.name === 'AbortError') return;
-        copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+        copiarAlPortapapeles(urlLarga);
       }
     } else {
-      copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+      copiarAlPortapapeles(urlLarga);
     }
   }
 }
@@ -1109,46 +1217,8 @@ function copiarAlPortapapeles(texto) {
     .catch(() => prompt('Copia este enlace:', texto));
 }
 
-function cargarListaDesdeURL() {
-  const params = new URLSearchParams(window.location.search);
-  const data = params.get('data');
-  
-  if (data) {
-    try {
-      const decoded = JSON.parse(decodeURIComponent(atob(data)));
-      if (confirm(`¿Cargar la lista de ${decoded.alias}? (${decoded.items.length} items)`)) {
-        const listas = getListas();
-        listas.push({
-          id: Date.now().toString(),
-          nombre: `Compartida: ${decoded.nombre || 'Lista'}`,
-          items: decoded.items.map(i => ({
-            id: i.id,
-            title: i.titulo,
-            name: i.titulo,
-            poster_path: null,
-            vote_average: 0,
-            release_date: '',
-            first_air_date: '',
-            overview: '',
-            plataformas: [],
-            next_episode: null,
-            last_episode: null,
-            miPuntuacion: 0
-          })),
-          creada: new Date().toISOString()
-        });
-        guardarListas(listas);
-        mostrarNotificacion(`Lista de ${decoded.alias} cargada`, 'success');
-        window.history.replaceState({}, document.title, '/');
-      }
-    } catch (e) {
-      mostrarNotificacion('Error al cargar la lista', 'error');
-    }
-  }
-}
-
 // ============================================
-// RECORDATORIOS - MEJORADO
+// RECORDATORIOS
 // ============================================
 function guardarRecordatorio() {
   if (!itemActual || perfilCompartido) return;
@@ -1193,7 +1263,7 @@ function verRecordatorios() {
   
   recordatorios.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   
-  let mensaje = '📅 TUS RECORDATORIOS:\n\n';
+  let mensaje = '📅 MIS RECORDATORIOS:\n\n';
   const hoy = new Date();
   hoy.setHours(0,0,0,0);
   
