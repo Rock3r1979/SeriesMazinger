@@ -18,6 +18,7 @@
   padding: 0;
   box-sizing: border-box;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-tap-highlight-color: transparent; /* Quita el resaltado en Android */
 }
 
 body {
@@ -268,6 +269,7 @@ nav button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 60px; /* Para facilitar el toque en Android */
 }
 
 .lista-opcion:hover {
@@ -277,11 +279,12 @@ nav button:hover {
 
 .lista-opcion .nombre {
   font-weight: bold;
+  font-size: 1.1rem; /* Más grande para Android */
 }
 
 .lista-opcion .contador {
   color: var(--warning);
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .btn-crear-nueva {
@@ -294,6 +297,7 @@ nav button:hover {
   cursor: pointer;
   font-size: 1rem;
   transition: all 0.3s;
+  min-height: 60px; /* Para facilitar el toque */
 }
 
 .btn-crear-nueva:hover {
@@ -322,6 +326,7 @@ nav button:hover {
   cursor: pointer;
   font-weight: bold;
   transition: all 0.3s;
+  min-height: 44px; /* Mínimo para Android */
 }
 
 .btn-primario:hover {
@@ -353,6 +358,7 @@ nav button:hover {
 .lista-acciones {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .btn-lista {
@@ -364,6 +370,7 @@ nav button:hover {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s;
+  min-height: 40px; /* Mínimo para Android */
 }
 
 .btn-lista:hover {
@@ -379,6 +386,7 @@ nav button:hover {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.3s;
+  min-height: 40px;
 }
 
 .btn-eliminar:hover {
@@ -476,6 +484,7 @@ nav button:hover {
   background: rgba(0,0,0,0.3);
   color: white;
   font-size: 1rem;
+  min-height: 44px;
 }
 
 .alias-input:focus,
@@ -499,6 +508,7 @@ nav button:hover {
   cursor: pointer;
   transition: all 0.3s;
   font-weight: bold;
+  min-height: 44px;
 }
 
 .btn-perfil:hover {
@@ -565,6 +575,7 @@ nav button:hover {
   border-radius: 25px;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .genero-btn:hover,
@@ -589,6 +600,7 @@ nav button:hover {
   cursor: pointer;
   transition: all 0.3s;
   margin-top: 1rem;
+  min-height: 52px;
 }
 
 .btn-guardar-pref:hover {
@@ -610,6 +622,7 @@ nav button:hover {
   border-radius: 25px;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .parati-tab.active {
@@ -635,6 +648,7 @@ nav button:hover {
   border: 1px solid rgba(255,255,255,0.2);
   border-radius: 25px;
   cursor: pointer;
+  min-height: 44px;
 }
 
 .agenda-stats {
@@ -668,6 +682,7 @@ nav button:hover {
   margin-bottom: 0.5rem;
   cursor: pointer;
   transition: all 0.3s;
+  min-height: 100px;
 }
 
 .agenda-card:hover {
@@ -721,6 +736,7 @@ nav button:hover {
   background: rgba(255,255,255,0.1);
   color: white;
   font-size: 1rem;
+  min-height: 44px;
 }
 
 .buscador-container input {
@@ -769,6 +785,9 @@ nav button:hover {
   color: white;
   text-decoration: none;
   transition: all 0.3s;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
 }
 
 .red-social:hover {
@@ -804,6 +823,7 @@ nav button:hover {
   color: white;
   width: 300px;
   max-width: 100%;
+  min-height: 44px;
 }
 
 .newsletter-form button {
@@ -814,6 +834,7 @@ nav button:hover {
   color: white;
   cursor: pointer;
   transition: all 0.3s;
+  min-height: 44px;
 }
 
 .newsletter-form button:hover {
@@ -841,6 +862,8 @@ nav button:hover {
   z-index: 3000;
   animation: slideUp 0.3s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 200px;
+  text-align: center;
 }
 
 .toast-success { background: var(--success); }
