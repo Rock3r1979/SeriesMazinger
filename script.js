@@ -15,7 +15,7 @@ let tendenciasTipo = 'tv';
 let busquedaPage = 1;
 let currentSearch = null;
 let aliasActual = localStorage.getItem('alias') || '';
-let perfilCompartido = false; // Para saber si estamos viendo un perfil compartido
+let perfilCompartido = false;
 
 // Variables de filtros
 let filtroPeliculas = 'latest';
@@ -87,7 +87,6 @@ const AVATARES = ['👤', '🎬', '📺', '🦸', '🐉', '👾', '🤖', '👨�
 // INICIALIZACIÓN
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Comprobar si hay perfil compartido en URL (SOLO VISUALIZACIÓN)
   const params = new URLSearchParams(window.location.search);
   const perfilData = params.get('perfil');
   
@@ -95,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarPerfilCompartido(perfilData);
     mostrarSeccion('perfil');
   } else {
-    // Cargar datos normales
     cargarPeliculas(true);
     cargarSeries(true);
     cargarTendencias(true);
@@ -111,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarBio();
   
   cargarListaDesdeURL();
+  comprobarRecordatorios();
 });
 
 // ============================================
@@ -121,11 +120,9 @@ function cargarPerfilCompartido(data) {
     const perfil = JSON.parse(decodeURIComponent(atob(data)));
     perfilCompartido = true;
     
-    // Mostrar los datos del perfil compartido
     document.getElementById('aliasActualDisplay').textContent = perfil.alias || 'Usuario';
     document.getElementById('bioInput').value = perfil.bio || '';
     
-    // Mostrar avatar
     const span = document.getElementById('avatarEmoji');
     const img = document.getElementById('avatarPreview');
     
@@ -139,14 +136,12 @@ function cargarPerfilCompartido(data) {
       img.style.display = 'none';
     }
     
-    // Deshabilitar edición
     document.querySelectorAll('.btn-perfil, .btn-compartir, #aliasInput, #bioInput').forEach(el => {
       if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
         el.disabled = true;
       }
     });
     
-    // Ocultar selectores de avatar y acciones
     document.getElementById('avatarEmojiSelector').style.display = 'none';
     document.querySelector('.avatar-actions').style.display = 'none';
     
@@ -210,7 +205,6 @@ function mostrarSeccion(id) {
   
   target.style.display = 'block';
   
-  // No cargar datos si estamos viendo perfil compartido
   if (perfilCompartido) return;
   
   switch(id) {
@@ -406,6 +400,18 @@ async function enriquecerConPlataformas(item, tipo) {
       provider_name: p.provider_name || 'Streaming',
       logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
     }));
+    
+    // Obtener información adicional para series
+    if (tipo === 'tv') {
+      const detallesRes = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
+      const detalles = await detallesRes.json();
+      item.next_episode_to_air = detalles.next_episode_to_air;
+      item.last_episode_to_air = detalles.last_episode_to_air;
+      item.number_of_seasons = detalles.number_of_seasons;
+      item.number_of_episodes = detalles.number_of_episodes;
+      item.status = detalles.status;
+      item.networks = detalles.networks;
+    }
   } catch {
     item.plataformas = [];
   }
@@ -490,11 +496,26 @@ function abrirModal(item) {
   const fecha = item.release_date || item.first_air_date || 'Fecha desconocida';
   const nota = item.vote_average || 0;
   
+  let proximoHTML = '';
+  if (item.next_episode_to_air) {
+    const nextDate = new Date(item.next_episode_to_air.air_date);
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
+    
+    let emoji = '📅';
+    if (diffDays === 0) emoji = '🔴';
+    else if (diffDays === 1) emoji = '🔵';
+    
+    proximoHTML = `<p style="color:#ffd700; margin-top:10px;">${emoji} Próximo: T${item.next_episode_to_air.season_number}E${item.next_episode_to_air.episode_number} - ${item.next_episode_to_air.air_date}</p>`;
+  }
+  
   document.getElementById('detalle').innerHTML = `
     <h2>${titulo}</h2>
     <p>${descripcion}</p>
     <p>📅 ${fecha}</p>
     <p>⭐ ${nota.toFixed(1)}/10</p>
+    ${proximoHTML}
   `;
   
   const plataformasContainer = document.getElementById('plataformasContainer');
@@ -609,6 +630,12 @@ function puntuarItem(item, puntuacion) {
       first_air_date: item.first_air_date || item.release_date,
       overview: item.overview || '',
       plataformas: item.plataformas || [],
+      next_episode: item.next_episode_to_air || null,
+      last_episode: item.last_episode_to_air || null,
+      number_of_seasons: item.number_of_seasons || 0,
+      number_of_episodes: item.number_of_episodes || 0,
+      status: item.status || '',
+      networks: item.networks || [],
       miPuntuacion: puntuacion
     });
   }
@@ -778,6 +805,9 @@ function cerrarSelectorListas() {
   document.getElementById('selectorListasModal').style.display = 'none';
 }
 
+// ============================================
+// AÑADIR A LISTA - CON TODOS LOS DATOS
+// ============================================
 function añadirALista(listaId) {
   if (!itemActual || perfilCompartido) return;
   
@@ -791,7 +821,6 @@ function añadirALista(listaId) {
     return;
   }
   
-  // Guardar TODA la información importante
   lista.items.push({
     id: itemActual.id,
     title: itemActual.title || itemActual.name,
@@ -802,6 +831,12 @@ function añadirALista(listaId) {
     first_air_date: itemActual.first_air_date || itemActual.release_date || '',
     overview: itemActual.overview || '',
     plataformas: itemActual.plataformas || [],
+    next_episode: itemActual.next_episode_to_air || null,
+    last_episode: itemActual.last_episode_to_air || null,
+    number_of_seasons: itemActual.number_of_seasons || 0,
+    number_of_episodes: itemActual.number_of_episodes || 0,
+    status: itemActual.status || '',
+    networks: itemActual.networks || [],
     miPuntuacion: 0
   });
   
@@ -831,7 +866,7 @@ function eliminarDeLista(itemId, listaId, event) {
 }
 
 // ============================================
-// RENDERIZAR LISTAS
+// RENDERIZAR LISTAS - CON LOGOS Y PRÓXIMOS EPISODIOS
 // ============================================
 function renderListas() {
   const listas = getListas();
@@ -872,14 +907,53 @@ function renderListas() {
           ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
           : 'https://via.placeholder.com/300x450?text=Sin+imagen';
         
-        // Mostrar fecha correcta
         const fecha = item.release_date || item.first_air_date || '';
+        
+        let plataformasHTML = '';
+        if (item.plataformas && item.plataformas.length > 0) {
+          plataformasHTML = '<div class="card-plataformas">';
+          item.plataformas.slice(0, 3).forEach(p => {
+            if (p.logo_path) {
+              plataformasHTML += `<img src="${p.logo_path}" title="${p.provider_name}" class="plataforma-mini">`;
+            }
+          });
+          if (item.plataformas.length > 3) {
+            plataformasHTML += `<span class="mas-plataformas">+${item.plataformas.length - 3}</span>`;
+          }
+          plataformasHTML += '</div>';
+        }
+        
+        let nextEpisodioHTML = '';
+        if (item.next_episode && !item.title) {
+          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date) : null;
+          const hoy = new Date();
+          hoy.setHours(0,0,0,0);
+          
+          if (nextDate) {
+            const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
+            let fechaTexto = '';
+            
+            if (diffDays === 0) fechaTexto = '🔴 HOY';
+            else if (diffDays === 1) fechaTexto = '🔵 MAÑANA';
+            else if (diffDays === 2) fechaTexto = '🟡 PASADO MAÑANA';
+            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 en ${diffDays} días`;
+            else fechaTexto = `📅 ${item.next_episode.air_date}`;
+            
+            nextEpisodioHTML = `
+              <div style="font-size:0.8rem; margin-top:5px; padding:3px; background:rgba(231,76,60,0.2); border-radius:5px;">
+                <span style="color:#ffd700;">⏰ Próximo:</span> T${item.next_episode.season_number}E${item.next_episode.episode_number} - ${fechaTexto}
+              </div>
+            `;
+          }
+        }
         
         card.innerHTML = `
           <img src="${poster}" loading="lazy" alt="${item.title || item.name || ''}">
           <h4>${item.title || item.name || 'Sin título'}</h4>
           <p>⭐ ${(item.vote_average || 0).toFixed(1)}</p>
           <p>📅 ${fecha || 'N/A'}</p>
+          ${plataformasHTML}
+          ${nextEpisodioHTML}
           <button class="btn-eliminar" onclick="eliminarDeLista('${item.id}', '${lista.id}', event)">Eliminar</button>
         `;
         
@@ -912,7 +986,6 @@ async function compartirLista(listaId) {
 
   const alias = aliasActual || prompt("¿Con qué nombre quieres compartir?") || "Usuario";
   
-  // Crear mensaje bonito
   const primerosItems = lista.items.slice(0, 3).map(i => i.title || i.name).join(', ');
   const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n${primerosItems}${lista.items.length > 3 ? '...' : ''}\n\nMira la lista completa en:`;
   
@@ -975,7 +1048,6 @@ async function compartirLista(listaId) {
 async function compartirPerfil() {
   const alias = aliasActual || 'Usuario';
   
-  // Obtener avatar
   const avatarEmoji = localStorage.getItem('avatarEmoji') || '👤';
   const avatarCustom = localStorage.getItem('avatarCustom') || '';
   
@@ -988,7 +1060,6 @@ async function compartirPerfil() {
   const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
   const urlLarga = `https://seriestopia.vercel.app/?perfil=${compressed}`;
   
-  // Mensaje bonito para compartir
   const mensaje = `👤 *Perfil de ${alias} en SERIESTOPIA*\n📝 ${shareData.bio.substring(0, 50)}${shareData.bio.length > 50 ? '...' : ''}\n🎬 ${getListas().reduce((sum, l) => sum + l.items.length, 0)} items en listas\n\n`;
   
   try {
@@ -1060,6 +1131,8 @@ function cargarListaDesdeURL() {
             first_air_date: '',
             overview: '',
             plataformas: [],
+            next_episode: null,
+            last_episode: null,
             miPuntuacion: 0
           })),
           creada: new Date().toISOString()
@@ -1075,26 +1148,107 @@ function cargarListaDesdeURL() {
 }
 
 // ============================================
-// RECORDATORIOS
+// RECORDATORIOS - MEJORADO
 // ============================================
 function guardarRecordatorio() {
   if (!itemActual || perfilCompartido) return;
   
   let recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
   
+  const esSerie = !itemActual.title;
+  
   const nuevoRecordatorio = {
     id: itemActual.id,
     title: itemActual.title || itemActual.name,
-    fecha: itemActual.release_date || itemActual.first_air_date || new Date().toISOString().split('T')[0]
+    tipo: esSerie ? 'serie' : 'pelicula',
+    fecha: itemActual.release_date || itemActual.first_air_date || new Date().toISOString().split('T')[0],
+    poster: itemActual.poster_path,
+    next_episode: itemActual.next_episode_to_air || null,
+    creado: new Date().toISOString()
   };
+  
+  if (esSerie && itemActual.next_episode_to_air) {
+    nuevoRecordatorio.proximoEpisodio = itemActual.next_episode_to_air.air_date;
+    nuevoRecordatorio.temporada = itemActual.next_episode_to_air.season_number;
+    nuevoRecordatorio.episodio = itemActual.next_episode_to_air.episode_number;
+  }
   
   if (!recordatorios.some(r => r.id == nuevoRecordatorio.id)) {
     recordatorios.push(nuevoRecordatorio);
     localStorage.setItem('recordatorios', JSON.stringify(recordatorios));
-    mostrarNotificacion('Recordatorio guardado', 'success');
+    actualizarStatsPerfil();
+    mostrarNotificacion('⏰ Recordatorio guardado', 'success');
   } else {
     mostrarNotificacion('Ya tienes este recordatorio', 'info');
   }
+}
+
+function verRecordatorios() {
+  const recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
+  
+  if (recordatorios.length === 0) {
+    mostrarNotificacion('No tienes recordatorios', 'info');
+    return;
+  }
+  
+  recordatorios.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  
+  let mensaje = '📅 TUS RECORDATORIOS:\n\n';
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  
+  recordatorios.forEach(rec => {
+    const fechaRec = new Date(rec.fecha + 'T12:00:00');
+    const diffDays = Math.ceil((fechaRec - hoy) / (1000 * 60 * 60 * 24));
+    
+    let emoji = '📌';
+    if (diffDays === 0) emoji = '🔴';
+    else if (diffDays === 1) emoji = '🔵';
+    else if (diffDays < 0) emoji = '✅';
+    
+    mensaje += `${emoji} ${rec.title} - ${rec.fecha}\n`;
+    
+    if (rec.proximoEpisodio) {
+      const diffEp = Math.ceil((new Date(rec.proximoEpisodio + 'T12:00:00') - hoy) / (1000 * 60 * 60 * 24));
+      let epEmoji = '📌';
+      if (diffEp === 0) epEmoji = '🔴';
+      else if (diffEp === 1) epEmoji = '🔵';
+      mensaje += `  ${epEmoji} Próx: T${rec.temporada}E${rec.episodio} - ${rec.proximoEpisodio}\n`;
+    }
+  });
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'Mis Recordatorios',
+      text: mensaje
+    }).catch(() => {
+      alert(mensaje);
+    });
+  } else {
+    alert(mensaje);
+  }
+}
+
+function comprobarRecordatorios() {
+  const recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  const hoyStr = hoy.toISOString().split('T')[0];
+  const manana = new Date(hoy);
+  manana.setDate(manana.getDate() + 1);
+  const mananaStr = manana.toISOString().split('T')[0];
+  
+  recordatorios.forEach(rec => {
+    if (rec.fecha === hoyStr) {
+      mostrarNotificacion(`🔴 ¡HOY SE ESTRENA! ${rec.title}`, 'info');
+    }
+    
+    if (rec.proximoEpisodio === hoyStr) {
+      mostrarNotificacion(`🔴 ¡HOY NUEVO EPISODIO! ${rec.title} T${rec.temporada}E${rec.episodio}`, 'info');
+    } else if (rec.proximoEpisodio === mananaStr) {
+      mostrarNotificacion(`🔵 MAÑANA: ${rec.title} T${rec.temporada}E${rec.episodio}`, 'info');
+    }
+  });
 }
 
 // ============================================
