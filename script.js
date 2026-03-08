@@ -100,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAvatarSelector();
   cargarBio();
   
-  // Comprobar si hay data en URL
   cargarListaDesdeURL();
 });
 
@@ -438,7 +437,6 @@ function abrirModal(item) {
     <p>⭐ ${nota.toFixed(1)}/10</p>
   `;
   
-  // Plataformas
   const plataformasContainer = document.getElementById('plataformasContainer');
   plataformasContainer.innerHTML = '<h3>Disponible en:</h3>';
   
@@ -456,16 +454,13 @@ function abrirModal(item) {
     plataformasContainer.innerHTML += '<p>No disponible en streaming</p>';
   }
   
-  // Temporadas (solo para series)
   document.getElementById('temporadasContainer').innerHTML = '';
   if (!item.title) {
     cargarTemporadas(item.id);
   }
   
-  // Estrellas de puntuación
   dibujarEstrellas(item);
   
-  // Mostrar modal
   document.getElementById('modal').style.display = 'block';
 }
 
@@ -808,7 +803,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS (con is.gd)
+// COMPARTIR LISTAS - CON ENLACE CORTO QUE FUNCIONA
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -822,11 +817,10 @@ async function compartirLista(listaId) {
   
   const shareData = {
     alias: alias,
-    lista: lista.nombre,
+    nombre: lista.nombre,
     items: lista.items.map(i => ({
       id: i.id,
-      titulo: i.title,
-      poster: i.poster_path
+      titulo: i.title
     }))
   };
   
@@ -838,6 +832,9 @@ async function compartirLista(listaId) {
     const urlCorta = await res.text();
     
     if (!urlCorta.includes('error') && urlCorta.startsWith('http')) {
+      
+      const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n\n${urlCorta}`;
+      
       if (navigator.share) {
         try {
           await navigator.share({
@@ -851,17 +848,20 @@ async function compartirLista(listaId) {
         }
       }
       
-      await navigator.clipboard.writeText(urlCorta);
-      mostrarNotificacion('Enlace copiado al portapapeles', 'success');
+      await navigator.clipboard.writeText(mensaje);
+      mostrarNotificacion('✅ Enlace corto copiado (is.gd)', 'success');
+      
     } else {
-      throw new Error('Error acortando URL');
+      throw new Error('Error acortando');
     }
   } catch {
+    const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n\n${urlLarga}`;
+    
     try {
-      await navigator.clipboard.writeText(urlLarga);
-      mostrarNotificacion('URL larga copiada', 'info');
+      await navigator.clipboard.writeText(mensaje);
+      mostrarNotificacion('📋 URL larga copiada', 'info');
     } catch {
-      prompt('Copia esta URL:', urlLarga);
+      prompt('Copia este enlace:', urlLarga);
     }
   }
 }
@@ -906,11 +906,11 @@ function cargarListaDesdeURL() {
         const listas = getListas();
         listas.push({
           id: Date.now().toString(),
-          nombre: `Compartida: ${decoded.lista || 'Lista'}`,
+          nombre: `Compartida: ${decoded.nombre || 'Lista'}`,
           items: decoded.items.map(i => ({
             id: i.id,
             title: i.titulo,
-            poster_path: i.poster,
+            poster_path: null,
             vote_average: 0,
             release_date: '',
             miPuntuacion: 0
