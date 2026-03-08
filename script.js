@@ -15,6 +15,7 @@ let tendenciasTipo = 'tv';
 let busquedaPage = 1;
 let currentSearch = null;
 let aliasActual = localStorage.getItem('alias') || '';
+let perfilCompartido = false; // Para saber si estamos viendo un perfil compartido
 
 // Variables de filtros
 let filtroPeliculas = 'latest';
@@ -86,12 +87,21 @@ const AVATARES = ['👤', '🎬', '📺', '🦸', '🐉', '👾', '🤖', '👨�
 // INICIALIZACIÓN
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-  cargarPeliculas(true);
-  cargarSeries(true);
-  cargarTendencias(true);
-  cargarPreferenciasOnboarding();
+  // Comprobar si hay perfil compartido en URL (SOLO VISUALIZACIÓN)
+  const params = new URLSearchParams(window.location.search);
+  const perfilData = params.get('perfil');
   
-  mostrarSeccion('tendencias');
+  if (perfilData) {
+    cargarPerfilCompartido(perfilData);
+    mostrarSeccion('perfil');
+  } else {
+    // Cargar datos normales
+    cargarPeliculas(true);
+    cargarSeries(true);
+    cargarTendencias(true);
+    cargarPreferenciasOnboarding();
+    mostrarSeccion('tendencias');
+  }
   
   document.querySelector('.close').onclick = cerrarModal;
   
@@ -102,6 +112,50 @@ document.addEventListener('DOMContentLoaded', () => {
   
   cargarListaDesdeURL();
 });
+
+// ============================================
+// PERFIL COMPARTIDO (SOLO VISUALIZACIÓN)
+// ============================================
+function cargarPerfilCompartido(data) {
+  try {
+    const perfil = JSON.parse(decodeURIComponent(atob(data)));
+    perfilCompartido = true;
+    
+    // Mostrar los datos del perfil compartido
+    document.getElementById('aliasActualDisplay').textContent = perfil.alias || 'Usuario';
+    document.getElementById('bioInput').value = perfil.bio || '';
+    
+    // Mostrar avatar
+    const span = document.getElementById('avatarEmoji');
+    const img = document.getElementById('avatarPreview');
+    
+    if (perfil.avatar && perfil.avatar.startsWith('data:image')) {
+      img.src = perfil.avatar;
+      img.style.display = 'block';
+      span.style.display = 'none';
+    } else {
+      span.textContent = perfil.avatar || '👤';
+      span.style.display = 'flex';
+      img.style.display = 'none';
+    }
+    
+    // Deshabilitar edición
+    document.querySelectorAll('.btn-perfil, .btn-compartir, #aliasInput, #bioInput').forEach(el => {
+      if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.disabled = true;
+      }
+    });
+    
+    // Ocultar selectores de avatar y acciones
+    document.getElementById('avatarEmojiSelector').style.display = 'none';
+    document.querySelector('.avatar-actions').style.display = 'none';
+    
+    mostrarNotificacion('👀 Estás viendo un perfil compartido - Modo solo lectura', 'info');
+    
+  } catch (e) {
+    mostrarNotificacion('Error al cargar perfil compartido', 'error');
+  }
+}
 
 // ============================================
 // NAVBAR HIDE ON SCROLL
@@ -156,6 +210,9 @@ function mostrarSeccion(id) {
   
   target.style.display = 'block';
   
+  // No cargar datos si estamos viendo perfil compartido
+  if (perfilCompartido) return;
+  
   switch(id) {
     case 'peliculas':
       cargarPeliculas(true);
@@ -185,6 +242,7 @@ function mostrarSeccion(id) {
 // PELÍCULAS
 // ============================================
 function cambiarFiltroPeliculas(filtro) {
+  if (perfilCompartido) return;
   filtroPeliculas = filtro;
   document.querySelectorAll('#peliculas .filtro-btn').forEach(btn => btn.classList.remove('active'));
   event.target.classList.add('active');
@@ -239,6 +297,7 @@ async function cargarPeliculas(reset = false) {
 // SERIES
 // ============================================
 function cambiarFiltroSeries(filtro) {
+  if (perfilCompartido) return;
   filtroSeries = filtro;
   document.querySelectorAll('#series .filtro-btn').forEach(btn => btn.classList.remove('active'));
   event.target.classList.add('active');
@@ -293,6 +352,7 @@ async function cargarSeries(reset = false) {
 // TENDENCIAS
 // ============================================
 function cambiarTipoTendencias(tipo) {
+  if (perfilCompartido) return;
   tendenciasTipo = tipo;
   document.querySelectorAll('#tendencias .filtro-btn').forEach(btn => btn.classList.remove('active'));
   document.getElementById(`filtroTendencias${tipo === 'tv' ? 'Tv' : 'Movie'}`).classList.add('active');
@@ -542,9 +602,13 @@ function puntuarItem(item, puntuacion) {
     listas[0].items.push({
       id: item.id,
       title: item.title || item.name,
+      name: item.name || item.title,
       poster_path: item.poster_path,
       vote_average: item.vote_average,
       release_date: item.release_date || item.first_air_date,
+      first_air_date: item.first_air_date || item.release_date,
+      overview: item.overview || '',
+      plataformas: item.plataformas || [],
       miPuntuacion: puntuacion
     });
   }
@@ -594,6 +658,11 @@ function guardarListas(listas) {
 }
 
 function crearLista() {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const nombre = prompt('Nombre de la nueva lista:');
   if (!nombre || !nombre.trim()) return;
   
@@ -611,6 +680,11 @@ function crearLista() {
 }
 
 function crearListaDesdeModal() {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   cerrarSelectorListas();
   setTimeout(() => {
     const nombre = prompt('Nombre de la nueva lista:');
@@ -631,6 +705,11 @@ function crearListaDesdeModal() {
 }
 
 function renombrarLista(id) {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const listas = getListas();
   const lista = listas.find(l => l.id === id);
   if (!lista) return;
@@ -644,6 +723,11 @@ function renombrarLista(id) {
 }
 
 function eliminarLista(id) {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const listas = getListas();
   if (listas.length <= 1) {
     mostrarNotificacion('Debes tener al menos una lista', 'error');
@@ -661,7 +745,7 @@ function eliminarLista(id) {
 // SELECTOR DE LISTAS MODAL
 // ============================================
 function mostrarSelectorListas() {
-  if (!itemActual) return;
+  if (!itemActual || perfilCompartido) return;
   
   const listas = getListas();
   const selector = document.getElementById('listasSelector');
@@ -695,7 +779,7 @@ function cerrarSelectorListas() {
 }
 
 function añadirALista(listaId) {
-  if (!itemActual) return;
+  if (!itemActual || perfilCompartido) return;
   
   const listas = getListas();
   const lista = listas.find(l => l.id === listaId);
@@ -707,12 +791,17 @@ function añadirALista(listaId) {
     return;
   }
   
+  // Guardar TODA la información importante
   lista.items.push({
     id: itemActual.id,
     title: itemActual.title || itemActual.name,
+    name: itemActual.name || itemActual.title,
     poster_path: itemActual.poster_path,
-    vote_average: itemActual.vote_average,
-    release_date: itemActual.release_date || itemActual.first_air_date,
+    vote_average: itemActual.vote_average || 0,
+    release_date: itemActual.release_date || itemActual.first_air_date || '',
+    first_air_date: itemActual.first_air_date || itemActual.release_date || '',
+    overview: itemActual.overview || '',
+    plataformas: itemActual.plataformas || [],
     miPuntuacion: 0
   });
   
@@ -722,6 +811,11 @@ function añadirALista(listaId) {
 }
 
 function eliminarDeLista(itemId, listaId, event) {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   event.stopPropagation();
   
   if (!confirm('¿Eliminar este elemento de la lista?')) return;
@@ -778,11 +872,14 @@ function renderListas() {
           ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
           : 'https://via.placeholder.com/300x450?text=Sin+imagen';
         
+        // Mostrar fecha correcta
+        const fecha = item.release_date || item.first_air_date || '';
+        
         card.innerHTML = `
-          <img src="${poster}" loading="lazy" alt="${item.title || ''}">
-          <h4>${item.title || 'Sin título'}</h4>
+          <img src="${poster}" loading="lazy" alt="${item.title || item.name || ''}">
+          <h4>${item.title || item.name || 'Sin título'}</h4>
           <p>⭐ ${(item.vote_average || 0).toFixed(1)}</p>
-          <p>📅 ${item.release_date || 'N/A'}</p>
+          <p>📅 ${fecha || 'N/A'}</p>
           <button class="btn-eliminar" onclick="eliminarDeLista('${item.id}', '${lista.id}', event)">Eliminar</button>
         `;
         
@@ -803,7 +900,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS - CON ENLACE CORTO QUE FUNCIONA
+// COMPARTIR LISTAS - CON REDES SOCIALES
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -815,12 +912,16 @@ async function compartirLista(listaId) {
 
   const alias = aliasActual || prompt("¿Con qué nombre quieres compartir?") || "Usuario";
   
+  // Crear mensaje bonito
+  const primerosItems = lista.items.slice(0, 3).map(i => i.title || i.name).join(', ');
+  const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n${primerosItems}${lista.items.length > 3 ? '...' : ''}\n\nMira la lista completa en:`;
+  
   const shareData = {
     alias: alias,
     nombre: lista.nombre,
     items: lista.items.map(i => ({
       id: i.id,
-      titulo: i.title
+      titulo: i.title || i.name
     }))
   };
   
@@ -832,14 +933,11 @@ async function compartirLista(listaId) {
     const urlCorta = await res.text();
     
     if (!urlCorta.includes('error') && urlCorta.startsWith('http')) {
-      
-      const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n\n${urlCorta}`;
-      
       if (navigator.share) {
         try {
           await navigator.share({
             title: `Lista: ${lista.nombre}`,
-            text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
+            text: mensaje,
             url: urlCorta
           });
           return;
@@ -848,44 +946,89 @@ async function compartirLista(listaId) {
         }
       }
       
-      await navigator.clipboard.writeText(mensaje);
-      mostrarNotificacion('✅ Enlace corto copiado (is.gd)', 'success');
-      
+      await navigator.clipboard.writeText(`${mensaje}\n\n${urlCorta}`);
+      mostrarNotificacion('✅ Lista lista para compartir', 'success');
     } else {
-      throw new Error('Error acortando');
+      throw new Error();
     }
   } catch {
-    const mensaje = `🎬 *${lista.nombre}* de ${alias}\n📺 ${lista.items.length} series/películas\n\n${urlLarga}`;
-    
-    try {
-      await navigator.clipboard.writeText(mensaje);
-      mostrarNotificacion('📋 URL larga copiada', 'info');
-    } catch {
-      prompt('Copia este enlace:', urlLarga);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Lista: ${lista.nombre}`,
+          text: mensaje,
+          url: urlLarga
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+      }
+    } else {
+      copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
     }
   }
 }
 
-function compartirPerfil() {
+// ============================================
+// COMPARTIR PERFIL - CON REDES SOCIALES
+// ============================================
+async function compartirPerfil() {
+  const alias = aliasActual || 'Usuario';
+  
+  // Obtener avatar
+  const avatarEmoji = localStorage.getItem('avatarEmoji') || '👤';
+  const avatarCustom = localStorage.getItem('avatarCustom') || '';
+  
   const shareData = {
-    alias: aliasActual || 'Usuario',
+    alias: alias,
     bio: localStorage.getItem('bio') || '',
-    avatar: localStorage.getItem('avatarEmoji') || '👤'
+    avatar: avatarCustom || avatarEmoji
   };
   
   const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
   const urlLarga = `https://seriestopia.vercel.app/?perfil=${compressed}`;
   
-  if (navigator.share) {
-    navigator.share({
-      title: `Perfil de ${shareData.alias}`,
-      text: 'Mira mi perfil en SERIESTOPIA',
-      url: urlLarga
-    }).catch(() => {
-      copiarAlPortapapeles(urlLarga);
-    });
-  } else {
-    copiarAlPortapapeles(urlLarga);
+  // Mensaje bonito para compartir
+  const mensaje = `👤 *Perfil de ${alias} en SERIESTOPIA*\n📝 ${shareData.bio.substring(0, 50)}${shareData.bio.length > 50 ? '...' : ''}\n🎬 ${getListas().reduce((sum, l) => sum + l.items.length, 0)} items en listas\n\n`;
+  
+  try {
+    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(urlLarga)}`);
+    const urlCorta = await res.text();
+    
+    if (!urlCorta.includes('error') && urlCorta.startsWith('http')) {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Perfil de ${alias}`,
+            text: mensaje,
+            url: urlCorta
+          });
+          return;
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+        }
+      }
+      
+      await navigator.clipboard.writeText(`${mensaje}\n\n${urlCorta}`);
+      mostrarNotificacion('✅ Perfil listo para compartir', 'success');
+    } else {
+      throw new Error();
+    }
+  } catch {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Perfil de ${alias}`,
+          text: mensaje,
+          url: urlLarga
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+      }
+    } else {
+      copiarAlPortapapeles(`${mensaje}\n\n${urlLarga}`);
+    }
   }
 }
 
@@ -910,9 +1053,13 @@ function cargarListaDesdeURL() {
           items: decoded.items.map(i => ({
             id: i.id,
             title: i.titulo,
+            name: i.titulo,
             poster_path: null,
             vote_average: 0,
             release_date: '',
+            first_air_date: '',
+            overview: '',
+            plataformas: [],
             miPuntuacion: 0
           })),
           creada: new Date().toISOString()
@@ -931,7 +1078,7 @@ function cargarListaDesdeURL() {
 // RECORDATORIOS
 // ============================================
 function guardarRecordatorio() {
-  if (!itemActual) return;
+  if (!itemActual || perfilCompartido) return;
   
   let recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
   
@@ -1531,6 +1678,10 @@ function renderAvatarSelector() {
     btn.className = 'avatar-emoji-btn' + (emoji === activo ? ' active' : '');
     btn.textContent = emoji;
     btn.onclick = () => {
+      if (perfilCompartido) {
+        mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+        return;
+      }
       localStorage.setItem('avatarEmoji', emoji);
       localStorage.removeItem('avatarCustom');
       
@@ -1564,6 +1715,11 @@ function renderAvatarSelector() {
 }
 
 function subirAvatarImagen(event) {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const file = event.target.files[0];
   if (!file) return;
   
@@ -1592,6 +1748,11 @@ function subirAvatarImagen(event) {
 }
 
 function guardarAlias() {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const alias = document.getElementById('aliasInput').value.trim();
   if (!alias) {
     mostrarNotificacion('Escribe un alias', 'error');
@@ -1604,7 +1765,6 @@ function guardarAlias() {
   document.getElementById('aliasActualDisplay').textContent = alias;
   document.getElementById('aliasInput').value = '';
   
-  actualizarEnlacePerfil();
   mostrarNotificacion('Alias guardado', 'success');
 }
 
@@ -1615,26 +1775,12 @@ function actualizarDisplayAlias() {
   }
 }
 
-function actualizarEnlacePerfil() {
-  const input = document.getElementById('enlaceCompartir');
-  if (input) {
-    input.value = aliasActual 
-      ? `https://seriestopia.vercel.app/?perfil=${encodeURIComponent(aliasActual)}`
-      : 'https://seriestopia.vercel.app/';
-  }
-}
-
-function copiarEnlacePerfil() {
-  const input = document.getElementById('enlaceCompartir');
-  if (!input) return;
-  
-  input.select();
-  navigator.clipboard.writeText(input.value)
-    .then(() => mostrarNotificacion('Enlace copiado', 'success'))
-    .catch(() => mostrarNotificacion('Error al copiar', 'error'));
-}
-
 function guardarBio() {
+  if (perfilCompartido) {
+    mostrarNotificacion('No puedes editar un perfil compartido', 'error');
+    return;
+  }
+  
   const bio = document.getElementById('bioInput').value.trim();
   localStorage.setItem('bio', bio);
   mostrarNotificacion('Bio guardada', 'success');
