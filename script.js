@@ -1041,7 +1041,7 @@ function renderListas() {
         
         let nextEpisodioHTML = '';
         if (item.next_episode && !item.title) {
-          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date) : null;
+          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date + 'T12:00:00') : null;
           const hoy = new Date();
           hoy.setHours(0,0,0,0);
           
@@ -1049,11 +1049,13 @@ function renderListas() {
             const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
             let fechaTexto = '';
             
+            const diaSemana = DIAS[nextDate.getDay()];
             if (diffDays === 0) fechaTexto = '🔴 HOY';
             else if (diffDays === 1) fechaTexto = '🔵 MAÑANA';
-            else if (diffDays === 2) fechaTexto = '🟡 PASADO MAÑANA';
-            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 en ${diffDays} días`;
-            else fechaTexto = `📅 ${item.next_episode.air_date}`;
+            else if (diffDays === 2) fechaTexto = `🟡 Pasado (${diaSemana})`;
+            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 ${diaSemana} (${diffDays}d)`;
+            else if (diffDays > 7) fechaTexto = `📅 ${diaSemana} ${item.next_episode.air_date}`;
+            else fechaTexto = `✅ Emitido`;
             
             nextEpisodioHTML = `
               <div style="font-size:0.8rem; margin-top:5px; padding:3px; background:rgba(231,76,60,0.2); border-radius:5px;">
@@ -1255,47 +1257,75 @@ function guardarRecordatorio() {
 
 function verRecordatorios() {
   const recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
-  
+
   if (recordatorios.length === 0) {
     mostrarNotificacion('No tienes recordatorios', 'info');
     return;
   }
-  
+
   recordatorios.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-  
-  let mensaje = '📅 MIS RECORDATORIOS:\n\n';
+
   const hoy = new Date();
   hoy.setHours(0,0,0,0);
-  
+
+  let itemsHTML = '';
   recordatorios.forEach(rec => {
+    const poster = rec.poster
+      ? `https://image.tmdb.org/t/p/w92${rec.poster}`
+      : 'https://via.placeholder.com/52x76?text=?';
+
     const fechaRec = new Date(rec.fecha + 'T12:00:00');
     const diffDays = Math.ceil((fechaRec - hoy) / (1000 * 60 * 60 * 24));
-    
-    let emoji = '📌';
-    if (diffDays === 0) emoji = '🔴';
-    else if (diffDays === 1) emoji = '🔵';
-    else if (diffDays < 0) emoji = '✅';
-    
-    mensaje += `${emoji} ${rec.title} - ${rec.fecha}\n`;
-    
+    let emoji = '\u{1F4CC}';
+    if (diffDays === 0) emoji = '\u{1F534}';
+    else if (diffDays === 1) emoji = '\u{1F535}';
+    else if (diffDays < 0) emoji = '\u2705';
+    const estadoHTML = `<span class="rec-modal-estado">${emoji} ${rec.fecha}</span>`;
+
+    let episodioHTML = '';
     if (rec.proximoEpisodio) {
       const diffEp = Math.ceil((new Date(rec.proximoEpisodio + 'T12:00:00') - hoy) / (1000 * 60 * 60 * 24));
-      let epEmoji = '📌';
-      if (diffEp === 0) epEmoji = '🔴';
-      else if (diffEp === 1) epEmoji = '🔵';
-      mensaje += `  ${epEmoji} Próx: T${rec.temporada}E${rec.episodio} - ${rec.proximoEpisodio}\n`;
+      let epEmoji = '\u{1F4CC}'; let epLabel = rec.proximoEpisodio;
+      if (diffEp === 0) { epEmoji = '\u{1F534}'; epLabel = 'HOY'; }
+      else if (diffEp === 1) { epEmoji = '\u{1F535}'; epLabel = 'MAÑANA'; }
+      else if (diffEp > 0 && diffEp <= 7) epLabel = `en ${diffEp} días (${rec.proximoEpisodio})`;
+      const esProximo = diffEp >= 0 && diffEp <= 7;
+      episodioHTML = `
+        <div class="rec-modal-episodio${esProximo ? ' rec-modal-episodio-pronto' : ''}">
+          ${epEmoji} Próx: T${rec.temporada}E${rec.episodio} \u2014 ${epLabel}
+        </div>`;
     }
+
+    itemsHTML += `
+      <div class="rec-modal-card">
+        <img src="${poster}" class="rec-modal-poster" alt="${rec.title}">
+        <div class="rec-modal-info">
+          <div class="rec-modal-titulo">${rec.title}</div>
+          ${estadoHTML}
+          ${episodioHTML}
+        </div>
+        <button class="rec-modal-borrar" onclick="event.stopPropagation(); eliminarRecordatorio(${rec.id})" title="Eliminar">\u2715</button>
+      </div>`;
   });
-  
-  if (navigator.share) {
-    navigator.share({
-      title: 'Mis Recordatorios',
-      text: mensaje
-    }).catch(() => {
-      alert(mensaje);
-    });
+
+  document.getElementById('modalRecordatoriosBody').innerHTML = itemsHTML;
+  document.getElementById('modalRecordatorios').style.display = 'block';
+}
+
+function cerrarModalRecordatorios() {
+  document.getElementById('modalRecordatorios').style.display = 'none';
+}
+
+function eliminarRecordatorio(id) {
+  let recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
+  recordatorios = recordatorios.filter(r => r.id != id);
+  localStorage.setItem('recordatorios', JSON.stringify(recordatorios));
+  actualizarStatsPerfil();
+  if (recordatorios.length === 0) {
+    cerrarModalRecordatorios();
+    mostrarNotificacion('No tienes recordatorios', 'info');
   } else {
-    alert(mensaje);
+    verRecordatorios();
   }
 }
 
