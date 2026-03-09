@@ -20,7 +20,7 @@
       <button onclick="mostrarSeccion('miLista')">Mis Listas</button>
       <button onclick="mostrarSeccion('perfil')">Perfil</button>
       <button onclick="mostrarSeccion('buscar')">Buscar</button>
-      <button onclick="mostrarSeccion('contacto')">Contacto</button>
+      <button onclick="mostrarSeccion('creditos')">Créditos</button>
     </nav>
   </header>
 
@@ -54,7 +54,7 @@
       <div id="seriesContainer" class="grid-container"></div>
     </section>
 
-    <!-- AGENDA - CORREGIDA (SEMANA POR DEFECTO) -->
+    <!-- AGENDA -->
     <section id="agenda" class="seccion">
       <div class="filtros-agenda">
         <select id="filtroFechaAgenda" onchange="aplicarFiltrosAgenda()">
@@ -115,7 +115,7 @@
       </div>
     </section>
 
-    <!-- MIS LISTAS (SIN LISTA POR DEFECTO) -->
+    <!-- MIS LISTAS -->
     <section id="miLista" class="seccion">
       <div class="listas-header">
         <h2>Mis Listas</h2>
@@ -185,25 +185,86 @@
       <div id="contenedorBuscar" class="grid-container"></div>
     </section>
 
-    <!-- CONTACTO -->
-    <section id="contacto" class="seccion">
-      <div class="contacto-container">
-        <h2>Contacto</h2>
-        <div class="redes-sociales">
-          <a class="red-social" href="#" target="_blank">🐦 Twitter</a>
-          <a class="red-social" href="#" target="_blank">📷 Instagram</a>
-          <a class="red-social" href="#" target="_blank">🎵 TikTok</a>
+    <!-- CRÉDITOS (NUEVA SECCIÓN) -->
+    <section id="creditos" class="seccion">
+      <div class="creditos-container">
+        
+        <!-- Sobre el proyecto -->
+        <div class="creditos-card">
+          <h2>Sobre SERIESTOPIA</h2>
+          <div class="creditos-historia">
+            <p>
+              SERIESTOPIA nació como un proyecto para un grupo de Telegram de 1800 personas apasionadas por las series. 
+              Lo que empezó como una pequeña herramienta para compartir recomendaciones, se ha convertido en una web 
+              completa para descubrir, organizar y seguir tus series y películas favoritas.
+            </p>
+            <p style="margin-top: 1rem;">
+              Detrás de este proyecto hay una persona que, a través de la programación y el mundo de las series, 
+              encuentra una vía de escape y una forma de mantener la mente activa. Cada funcionalidad está pensada 
+              con cariño para hacer más fácil y divertido el seguimiento de tus contenidos favoritos.
+            </p>
+          </div>
         </div>
-        <div class="contacto-info">
-          <h3>Email</h3>
-          <p><a href="mailto:info@seriestopia.vercel.app">info@seriestopia.vercel.app</a></p>
+
+        <!-- Buy Me a Coffee -->
+        <div class="creditos-card">
+          <h2>¿Te gusta SERIESTOPIA?</h2>
+          <p class="creditos-texto">
+            Si esta web te resulta útil y quieres ayudar a mantenerla, puedes invitarme a un café. 
+            Tu apoyo me ayuda a seguir mejorando y añadiendo nuevas funcionalidades. 
+            ¡Cualquier granito de arena es bienvenido y muy agradecido! ☕
+          </p>
+          <div class="creditos-botones">
+            <a href="https://ko-fi.com/tuusuario" target="_blank" class="btn-kofi">
+              <img src="https://storage.ko-fi.com/cdn/logomarkLogo.png" alt="Ko-fi" class="kofi-icon">
+              Invítame a un café
+            </a>
+          </div>
         </div>
-        <div class="newsletter">
-          <h3>Suscríbete</h3>
-          <p>Recibe novedades y mejoras de SERIESTOPIA.</p>
-          <div class="newsletter-form">
-            <input id="newsletterEmail" type="email" placeholder="Tu correo electrónico">
-            <button onclick="suscribirNewsletter()">Suscribirme</button>
+
+        <!-- Atribución TMDB (OBLIGATORIO) -->
+        <div class="creditos-card">
+          <h2>Datos proporcionados por</h2>
+          <div class="tmdb-attribution">
+            <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" class="tmdb-logo-link">
+              <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" 
+                   alt="The Movie Database (TMDB)" 
+                   class="tmdb-logo">
+            </a>
+            <p class="tmdb-text">
+              This product uses the TMDb API but is not endorsed or certified by TMDb.
+            </p>
+            <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" class="tmdb-link">
+              themoviedb.org
+            </a>
+          </div>
+        </div>
+
+        <!-- Contacto -->
+        <div class="creditos-card">
+          <h2>Contacto</h2>
+          <p class="creditos-texto">
+            ¿Tienes alguna duda, sugerencia o simplemente quieres decir hola? 
+            Puedes escribirme directamente:
+          </p>
+          <div class="creditos-email">
+            <a href="mailto:info@seriestopia.vercel.app" class="email-link">
+              📧 info@seriestopia.vercel.app
+            </a>
+          </div>
+          <p class="creditos-texto" style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted);">
+            Respondo a todos los correos en menos de 24 horas.
+          </p>
+        </div>
+
+        <!-- Redes sociales (opcional) -->
+        <div class="creditos-card">
+          <h2>Síguenos</h2>
+          <div class="redes-creditos">
+            <a href="#" target="_blank" class="red-credito">🐦 Twitter</a>
+            <a href="#" target="_blank" class="red-credito">📷 Instagram</a>
+            <a href="#" target="_blank" class="red-credito">🎵 TikTok</a>
+            <a href="https://t.me/tu_grupo" target="_blank" class="red-credito">📱 Telegram</a>
           </div>
         </div>
       </div>
