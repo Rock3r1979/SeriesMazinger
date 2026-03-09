@@ -1041,7 +1041,7 @@ function renderListas() {
         
         let nextEpisodioHTML = '';
         if (item.next_episode && !item.title) {
-          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date + 'T12:00:00') : null;
+          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date) : null;
           const hoy = new Date();
           hoy.setHours(0,0,0,0);
           
@@ -1049,13 +1049,11 @@ function renderListas() {
             const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
             let fechaTexto = '';
             
-            const diaSemana = DIAS[nextDate.getDay()];
             if (diffDays === 0) fechaTexto = '🔴 HOY';
             else if (diffDays === 1) fechaTexto = '🔵 MAÑANA';
-            else if (diffDays === 2) fechaTexto = `🟡 Pasado (${diaSemana})`;
-            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 ${diaSemana} (${diffDays}d)`;
-            else if (diffDays > 7) fechaTexto = `📅 ${diaSemana} ${item.next_episode.air_date}`;
-            else fechaTexto = `✅ Emitido`;
+            else if (diffDays === 2) fechaTexto = '🟡 PASADO MAÑANA';
+            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 en ${diffDays} días`;
+            else fechaTexto = `📅 ${item.next_episode.air_date}`;
             
             nextEpisodioHTML = `
               <div style="font-size:0.8rem; margin-top:5px; padding:3px; background:rgba(231,76,60,0.2); border-radius:5px;">
@@ -1856,7 +1854,7 @@ async function cargarRecomendaciones(pref) {
     let url = `${BASEURL}discover/${tipoActual}?api_key=${APIKEY}&language=es-ES&watch_region=ES&with_genres=${generosStr}&sort_by=popularity.desc&vote_count.gte=50&page=1`;
     
     if (pref.plataformas && pref.plataformas.length > 0) {
-      url += `&with_watch_providers=${pref.plataformas.join('|')}&watch_region=ES`;
+      url += `&with_watch_providers=${pref.plataformas.join('|')}`;
     }
     
     const res = await fetch(url);
@@ -1886,12 +1884,7 @@ async function cargarRecomendaciones(pref) {
 function cambiarTabParaTi(tipo) {
   paratiTabActual = tipo;
   const pref = getPreferencias();
-  if (pref) {
-    // Limpiar caché de esta combinación para forzar recarga fresca
-    const cacheKey = `parati_${tipo}_${pref.generos.join('-')}_${pref.plataformas.join('-')}`;
-    localStorage.removeItem(cacheKey);
-    cargarRecomendaciones(pref);
-  }
+  if (pref) cargarRecomendaciones(pref);
 }
 
 // ============================================
