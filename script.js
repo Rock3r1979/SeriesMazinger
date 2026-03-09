@@ -93,8 +93,13 @@ const esAndroid = /Android/i.test(navigator.userAgent);
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const perfilData = params.get('p'); // Cambiado a p para más corto
-  const listaData = params.get('d');   // Cambiado a d para más corto
+  const perfilData = params.get('p');
+  const listaData = params.get('d');
+  
+  // Inicializar listas vacías si no existen
+  if (!localStorage.getItem('listas')) {
+    localStorage.setItem('listas', JSON.stringify([]));
+  }
   
   if (perfilData) {
     cargarPerfilCompartido(perfilData);
@@ -119,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   comprobarRecordatorios();
   
-  // Configurar manejador táctil para Android
   if (esAndroid) {
     configurarManejadorAndroid();
   }
@@ -130,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================
 function configurarManejadorAndroid() {
   document.addEventListener('touchend', function(e) {
-    // Para el selector de listas
     if (e.target.closest('.lista-opcion') && !e.target.closest('.lista-opcion[style*="opacity: 0.5"]')) {
       e.preventDefault();
       const opcion = e.target.closest('.lista-opcion');
@@ -150,13 +153,12 @@ function cargarPerfilCompartido(data) {
     const perfil = JSON.parse(decodeURIComponent(atob(data)));
     perfilCompartido = true;
     
-    document.getElementById('aliasActualDisplay').textContent = perfil.a || 'Usuario'; // a = alias
-    document.getElementById('bioInput').value = perfil.b || ''; // b = bio
+    document.getElementById('aliasActualDisplay').textContent = perfil.a || 'Usuario';
     
     const span = document.getElementById('avatarEmoji');
     const img = document.getElementById('avatarPreview');
     
-    if (perfil.av && perfil.av.startsWith('data:image')) { // av = avatar
+    if (perfil.av && perfil.av.startsWith('data:image')) {
       img.src = perfil.av;
       img.style.display = 'block';
       span.style.display = 'none';
@@ -166,14 +168,17 @@ function cargarPerfilCompartido(data) {
       img.style.display = 'none';
     }
     
-    document.querySelectorAll('.btn-perfil, .btn-compartir, #aliasInput, #bioInput').forEach(el => {
-      if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-        el.disabled = true;
+    document.querySelectorAll('.btn-perfil, .btn-compartir, #aliasInput, #bioInput, .avatar-emoji-btn, .btn-share').forEach(el => {
+      if (el) {
+        if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          el.disabled = true;
+        }
       }
     });
     
     document.getElementById('avatarEmojiSelector').style.display = 'none';
     document.querySelector('.avatar-actions').style.display = 'none';
+    document.querySelector('.btn-compartir').disabled = true;
     
     mostrarNotificacion('👀 Estás viendo un perfil compartido', 'info');
     
@@ -189,10 +194,11 @@ function cargarListaDesdeURL(data) {
   try {
     const decoded = JSON.parse(decodeURIComponent(atob(data)));
     const listas = getListas();
-    listas.push({
+    
+    const nuevaLista = {
       id: Date.now().toString(),
-      nombre: `Compartida: ${decoded.n || 'Lista'}`, // n = nombre
-      items: (decoded.i || []).map(id => ({ // i = ids
+      nombre: decoded.n || 'Lista compartida',
+      items: (decoded.i || []).map(id => ({
         id: id,
         title: 'Cargando...',
         name: 'Cargando...',
@@ -207,12 +213,13 @@ function cargarListaDesdeURL(data) {
         miPuntuacion: 0
       })),
       creada: new Date().toISOString()
-    });
+    };
+    
+    listas.push(nuevaLista);
     guardarListas(listas);
     mostrarNotificacion(`Lista de ${decoded.a || 'usuario'} cargada`, 'success');
     
-    // Intentar cargar detalles de los items
-    cargarDetallesItemsCompartidos(listas[listas.length - 1]);
+    cargarDetallesItemsCompartidos(nuevaLista);
     
     window.history.replaceState({}, document.title, '/');
   } catch (e) {
@@ -224,12 +231,10 @@ async function cargarDetallesItemsCompartidos(lista) {
   for (let i = 0; i < lista.items.length; i++) {
     const item = lista.items[i];
     try {
-      // Intentar como serie primero
       let res = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
       let data = await res.json();
       
       if (data.success === false) {
-        // Si no es serie, probar como película
         res = await fetch(`${BASEURL}movie/${item.id}?api_key=${APIKEY}&language=es-ES`);
         data = await res.json();
       }
@@ -242,7 +247,10 @@ async function cargarDetallesItemsCompartidos(lista) {
       item.first_air_date = data.first_air_date || data.release_date || '';
       item.overview = data.overview || '';
       
-      // Obtener plataformas
+      if (data.next_episode_to_air) {
+        item.next_episode = data.next_episode_to_air;
+      }
+      
       const tipo = data.title ? 'movie' : 'tv';
       const platRes = await fetch(`${BASEURL}${tipo}/${item.id}/watch/providers?api_key=${APIKEY}`);
       const platData = await platRes.json();
@@ -496,7 +504,7 @@ async function cargarTendencias(reset = false) {
 }
 
 // ============================================
-// ENRIQUECER CON PLATAFORMAS
+// ENRIQUECER CON PLATAFORMAS Y PRÓXIMOS EPISODIOS
 // ============================================
 async function enriquecerConPlataformas(item, tipo) {
   try {
@@ -508,12 +516,14 @@ async function enriquecerConPlataformas(item, tipo) {
       logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
     }));
     
-    // Obtener información adicional para series
     if (tipo === 'tv') {
       const detallesRes = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
       const detalles = await detallesRes.json();
       item.next_episode_to_air = detalles.next_episode_to_air;
       item.last_episode_to_air = detalles.last_episode_to_air;
+      item.number_of_seasons = detalles.number_of_seasons;
+      item.number_of_episodes = detalles.number_of_episodes;
+      item.status = detalles.status;
     }
   } catch {
     item.plataformas = [];
@@ -546,11 +556,50 @@ function crearTarjetaHTML(item) {
     plataformasHTML += '</div>';
   }
   
+  let proximoEpisodioHTML = '';
+  if (item.next_episode_to_air) {
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const nextDate = new Date(item.next_episode_to_air.air_date + 'T12:00:00');
+    const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
+    
+    let badgeClass = 'badge-proximo';
+    let emoji = '📅';
+    let texto = '';
+    
+    if (diffDays === 0) {
+      badgeClass += ' badge-hoy';
+      emoji = '🔴';
+      texto = 'HOY';
+    } else if (diffDays === 1) {
+      badgeClass += ' badge-manana';
+      emoji = '🔵';
+      texto = 'MAÑANA';
+    } else if (diffDays > 0 && diffDays <= 7) {
+      texto = `en ${diffDays} días`;
+    } else {
+      texto = item.next_episode_to_air.air_date;
+    }
+    
+    const diaSemana = nextDate ? DIAS[nextDate.getDay()] : '';
+    const fechaTexto = diffDays === 0 ? 'HOY' : 
+                      diffDays === 1 ? 'MAÑANA' :
+                      diffDays > 0 && diffDays <= 7 ? `${diaSemana} (${diffDays}d)` :
+                      item.next_episode_to_air.air_date;
+    
+    proximoEpisodioHTML = `
+      <div class="${badgeClass}">
+        ${emoji} Próximo: T${item.next_episode_to_air.season_number}E${item.next_episode_to_air.episode_number} - ${fechaTexto}
+      </div>
+    `;
+  }
+  
   return `
     <img src="${poster}" loading="lazy" alt="${titulo}">
     <h4>${titulo}</h4>
     <p>⭐ ${nota.toFixed(1)}</p>
     <p>📅 ${fecha || 'N/A'}</p>
+    ${proximoEpisodioHTML}
     ${plataformasHTML}
   `;
 }
@@ -631,6 +680,9 @@ function abrirModal(item) {
         img.src = p.logo_path;
         img.title = p.provider_name;
         img.alt = p.provider_name;
+        img.style.width = '50px';
+        img.style.margin = '5px';
+        img.style.borderRadius = '8px';
         plataformasContainer.appendChild(img);
       }
     });
@@ -667,6 +719,7 @@ async function cargarTemporadas(serieId) {
         if (season.season_number > 0) {
           const div = document.createElement('div');
           div.className = 'temporada';
+          div.style.cssText = 'margin:10px 0; padding:10px; background:rgba(255,255,255,0.05); border-radius:8px;';
           div.innerHTML = `
             <h4>Temporada ${season.season_number}</h4>
             <p>${season.name || ''}</p>
@@ -704,7 +757,7 @@ function dibujarEstrellas(item) {
     const star = document.createElement('span');
     star.className = 'star';
     star.innerHTML = '★';
-    if (i <= puntuacionActual) star.classList.add('active');
+    star.style.cssText = 'font-size:2rem; cursor:pointer; margin:0 5px; color:' + (i <= puntuacionActual ? '#ffd700' : '#555');
     star.onclick = () => puntuarItem(item, i);
     container.appendChild(star);
   }
@@ -733,8 +786,8 @@ function puntuarItem(item, puntuacion) {
       first_air_date: item.first_air_date || item.release_date,
       overview: item.overview || '',
       plataformas: item.plataformas || [],
-      next_episode: item.next_episode_to_air || null,
-      last_episode: item.last_episode_to_air || null,
+      next_episode_to_air: item.next_episode_to_air || null,
+      last_episode_to_air: item.last_episode_to_air || null,
       number_of_seasons: item.number_of_seasons || 0,
       number_of_episodes: item.number_of_episodes || 0,
       status: item.status || '',
@@ -749,7 +802,7 @@ function puntuarItem(item, puntuacion) {
 }
 
 // ============================================
-// SISTEMA DE LISTAS MÚLTIPLES
+// SISTEMA DE LISTAS MÚLTIPLES (AHORA SIN LISTA POR DEFECTO)
 // ============================================
 function getListas() {
   const raw = localStorage.getItem('listas');
@@ -758,33 +811,13 @@ function getListas() {
       return JSON.parse(raw);
     } catch {}
   }
-  
-  const antigua = localStorage.getItem('miLista');
-  if (antigua) {
-    try {
-      const items = JSON.parse(antigua);
-      const listas = [{
-        id: Date.now().toString(),
-        nombre: 'Mi Lista',
-        items: items,
-        creada: new Date().toISOString()
-      }];
-      localStorage.setItem('listas', JSON.stringify(listas));
-      return listas;
-    } catch {}
-  }
-  
-  return [{
-    id: Date.now().toString(),
-    nombre: 'Mi Lista',
-    items: [],
-    creada: new Date().toISOString()
-  }];
+  return [];
 }
 
 function guardarListas(listas) {
   localStorage.setItem('listas', JSON.stringify(listas));
-  localStorage.setItem('miLista', JSON.stringify(listas.flatMap(l => l.items)));
+  const todasItems = listas.flatMap(l => l.items);
+  localStorage.setItem('miLista', JSON.stringify(todasItems));
 }
 
 function crearLista() {
@@ -859,10 +892,6 @@ function eliminarLista(id) {
   }
   
   const listas = getListas();
-  if (listas.length <= 1) {
-    mostrarNotificacion('Debes tener al menos una lista', 'error');
-    return;
-  }
   
   if (!confirm('¿Eliminar esta lista y todo su contenido?')) return;
   
@@ -872,7 +901,7 @@ function eliminarLista(id) {
 }
 
 // ============================================
-// SELECTOR DE LISTAS MODAL - CORREGIDO PARA ANDROID
+// SELECTOR DE LISTAS MODAL
 // ============================================
 function mostrarSelectorListas() {
   if (!itemActual || perfilCompartido) return;
@@ -881,38 +910,40 @@ function mostrarSelectorListas() {
   const selector = document.getElementById('listasSelector');
   selector.innerHTML = '';
   
-  listas.forEach(lista => {
-    const yaEsta = lista.items.some(i => i.id == itemActual.id);
-    
-    const opcion = document.createElement('div');
-    opcion.className = 'lista-opcion';
-    opcion.setAttribute('data-lista-id', lista.id);
-    opcion.setAttribute('data-ya-esta', yaEsta);
-    opcion.innerHTML = `
-      <span class="nombre">${lista.nombre}</span>
-      <span class="contador">${lista.items.length} items</span>
-    `;
-    
-    if (yaEsta) {
-      opcion.style.opacity = '0.5';
-      opcion.style.pointerEvents = 'none';
-      opcion.title = 'Ya está en esta lista';
-    } else {
-      if (!esAndroid) {
-        // En Windows usar onclick
-        opcion.onclick = function(e) {
-          e.preventDefault();
-          const listaId = this.getAttribute('data-lista-id');
-          añadirALista(listaId);
-        };
+  if (listas.length === 0) {
+    selector.innerHTML = '<p style="text-align:center; padding:2rem; color:#888;">No tienes listas. Crea una primero.</p>';
+  } else {
+    listas.forEach(lista => {
+      const yaEsta = lista.items.some(i => i.id == itemActual.id);
+      
+      const opcion = document.createElement('div');
+      opcion.className = 'lista-opcion';
+      opcion.setAttribute('data-lista-id', lista.id);
+      opcion.setAttribute('data-ya-esta', yaEsta);
+      opcion.innerHTML = `
+        <span class="nombre">${lista.nombre}</span>
+        <span class="contador">${lista.items.length} items</span>
+      `;
+      
+      if (yaEsta) {
+        opcion.style.opacity = '0.5';
+        opcion.style.pointerEvents = 'none';
+        opcion.title = 'Ya está en esta lista';
       } else {
-        // En Android usar event listener (ya configurado)
-        opcion.style.cursor = 'pointer';
+        if (!esAndroid) {
+          opcion.onclick = function(e) {
+            e.preventDefault();
+            const listaId = this.getAttribute('data-lista-id');
+            añadirALista(listaId);
+          };
+        } else {
+          opcion.style.cursor = 'pointer';
+        }
       }
-    }
-    
-    selector.appendChild(opcion);
-  });
+      
+      selector.appendChild(opcion);
+    });
+  }
   
   document.getElementById('selectorListasModal').style.display = 'block';
 }
@@ -947,8 +978,8 @@ function añadirALista(listaId) {
     first_air_date: itemActual.first_air_date || itemActual.release_date || '',
     overview: itemActual.overview || '',
     plataformas: itemActual.plataformas || [],
-    next_episode: itemActual.next_episode_to_air || null,
-    last_episode: itemActual.last_episode_to_air || null,
+    next_episode_to_air: itemActual.next_episode_to_air || null,
+    last_episode_to_air: itemActual.last_episode_to_air || null,
     number_of_seasons: itemActual.number_of_seasons || 0,
     number_of_episodes: itemActual.number_of_episodes || 0,
     status: itemActual.status || '',
@@ -982,7 +1013,7 @@ function eliminarDeLista(itemId, listaId, event) {
 }
 
 // ============================================
-// RENDERIZAR LISTAS
+// RENDERIZAR LISTAS CON PRÓXIMOS EPISODIOS
 // ============================================
 function renderListas() {
   const listas = getListas();
@@ -990,6 +1021,18 @@ function renderListas() {
   if (!container) return;
   
   container.innerHTML = '';
+  
+  if (listas.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:3rem; background:rgba(255,255,255,0.03); border-radius:15px;">
+        <p style="font-size:3rem; margin-bottom:1rem;">📋</p>
+        <h3 style="color:#888;">No tienes ninguna lista</h3>
+        <p style="color:#666; margin:1rem 0;">Crea tu primera lista para empezar a guardar series y películas</p>
+        <button class="btn-primario" onclick="crearLista()">+ Crear mi primera lista</button>
+      </div>
+    `;
+    return;
+  }
   
   listas.forEach(lista => {
     const listaDiv = document.createElement('div');
@@ -1001,7 +1044,7 @@ function renderListas() {
         <div class="lista-acciones">
           <button class="btn-lista" onclick="renombrarLista('${lista.id}')">✏️ Renombrar</button>
           <button class="btn-eliminar" onclick="eliminarLista('${lista.id}')">🗑️ Eliminar</button>
-          <button class="btn-lista" onclick="compartirLista('${lista.id}')">📤 Compartir</button>
+          <button class="btn-share" onclick="compartirLista('${lista.id}')">📤 Compartir</button>
         </div>
       </div>
     `;
@@ -1039,30 +1082,35 @@ function renderListas() {
           plataformasHTML += '</div>';
         }
         
-        let nextEpisodioHTML = '';
-        if (item.next_episode && !item.title) {
-          const nextDate = item.next_episode.air_date ? new Date(item.next_episode.air_date + 'T12:00:00') : null;
+        let proximoEpisodioHTML = '';
+        if (item.next_episode_to_air && !item.title) {
           const hoy = new Date();
           hoy.setHours(0,0,0,0);
+          const nextDate = new Date(item.next_episode_to_air.air_date + 'T12:00:00');
+          const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
           
-          if (nextDate) {
-            const diffDays = Math.ceil((nextDate - hoy) / (1000 * 60 * 60 * 24));
-            let fechaTexto = '';
-            
+          let badgeClass = 'badge-proximo';
+          let emoji = '📅';
+          let fechaTexto = item.next_episode_to_air.air_date;
+          
+          if (diffDays === 0) {
+            badgeClass += ' badge-hoy';
+            emoji = '🔴';
+            fechaTexto = 'HOY';
+          } else if (diffDays === 1) {
+            badgeClass += ' badge-manana';
+            emoji = '🔵';
+            fechaTexto = 'MAÑANA';
+          } else if (diffDays > 0 && diffDays <= 7) {
             const diaSemana = DIAS[nextDate.getDay()];
-            if (diffDays === 0) fechaTexto = '🔴 HOY';
-            else if (diffDays === 1) fechaTexto = '🔵 MAÑANA';
-            else if (diffDays === 2) fechaTexto = `🟡 Pasado (${diaSemana})`;
-            else if (diffDays > 0 && diffDays <= 7) fechaTexto = `📅 ${diaSemana} (${diffDays}d)`;
-            else if (diffDays > 7) fechaTexto = `📅 ${diaSemana} ${item.next_episode.air_date}`;
-            else fechaTexto = `✅ Emitido`;
-            
-            nextEpisodioHTML = `
-              <div style="font-size:0.8rem; margin-top:5px; padding:3px; background:rgba(231,76,60,0.2); border-radius:5px;">
-                <span style="color:#ffd700;">⏰ Próximo:</span> T${item.next_episode.season_number}E${item.next_episode.episode_number} - ${fechaTexto}
-              </div>
-            `;
+            fechaTexto = `${diaSemana} (${diffDays}d)`;
           }
+          
+          proximoEpisodioHTML = `
+            <div class="${badgeClass}">
+              ${emoji} T${item.next_episode_to_air.season_number}E${item.next_episode_to_air.episode_number} - ${fechaTexto}
+            </div>
+          `;
         }
         
         card.innerHTML = `
@@ -1070,8 +1118,8 @@ function renderListas() {
           <h4>${item.title || item.name || 'Sin título'}</h4>
           <p>⭐ ${(item.vote_average || 0).toFixed(1)}</p>
           <p>📅 ${fecha || 'N/A'}</p>
+          ${proximoEpisodioHTML}
           ${plataformasHTML}
-          ${nextEpisodioHTML}
           <button class="btn-eliminar" onclick="eliminarDeLista('${item.id}', '${lista.id}', event)">Eliminar</button>
         `;
         
@@ -1092,7 +1140,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS - MÁS CORTO
+// COMPARTIR LISTAS Y PERFIL POR REDES SOCIALES
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -1110,53 +1158,26 @@ async function compartirLista(listaId) {
     i: lista.items.map(i => i.id)
   };
   
-  const compressed = btoa(JSON.stringify(shareData));
-  const urlLarga = `https://seriestopia.vercel.app/?d=${compressed}`;
+  const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
+  const url = `https://seriestopia.vercel.app/?d=${compressed}`;
   
-  try {
-    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(urlLarga)}`);
-    const urlCorta = await res.text();
-    
-    if (!urlCorta.includes('error') && urlCorta.startsWith('http')) {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: `Lista: ${lista.nombre}`,
-            text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
-            url: urlCorta
-          });
-          return;
-        } catch (e) {
-          if (e.name === 'AbortError') return;
-        }
-      }
-      
-      await navigator.clipboard.writeText(urlCorta);
-      mostrarNotificacion('✅ Enlace copiado', 'success');
-    } else {
-      throw new Error();
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `Mi lista: ${lista.nombre}`,
+        text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
+        url: url
+      });
+      mostrarNotificacion('Compartido', 'success');
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      compartirRedesSociales(url, lista.nombre);
     }
-  } catch {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Lista: ${lista.nombre}`,
-          text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
-          url: urlLarga
-        });
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        copiarAlPortapapeles(urlLarga);
-      }
-    } else {
-      copiarAlPortapapeles(urlLarga);
-    }
+  } else {
+    compartirRedesSociales(url, lista.nombre);
   }
 }
 
-// ============================================
-// COMPARTIR PERFIL
-// ============================================
 async function compartirPerfil() {
   const alias = aliasActual || 'Usuario';
   
@@ -1165,58 +1186,63 @@ async function compartirPerfil() {
   
   const shareData = {
     a: alias,
-    b: localStorage.getItem('bio') || '',
     av: avatarCustom || avatarEmoji
   };
   
-  const compressed = btoa(JSON.stringify(shareData));
-  const urlLarga = `https://seriestopia.vercel.app/?p=${compressed}`;
+  const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
+  const url = `https://seriestopia.vercel.app/?p=${compressed}`;
   
-  try {
-    const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(urlLarga)}`);
-    const urlCorta = await res.text();
-    
-    if (!urlCorta.includes('error') && urlCorta.startsWith('http')) {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: `Perfil de ${alias}`,
-            text: `Mira mi perfil en SERIESTOPIA`,
-            url: urlCorta
-          });
-          return;
-        } catch (e) {
-          if (e.name === 'AbortError') return;
-        }
-      }
-      
-      await navigator.clipboard.writeText(urlCorta);
-      mostrarNotificacion('✅ Enlace copiado', 'success');
-    } else {
-      throw new Error();
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `Perfil de ${alias}`,
+        text: `Mira mi perfil en SERIESTOPIA`,
+        url: url
+      });
+      mostrarNotificacion('Compartido', 'success');
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      compartirRedesSociales(url, alias);
     }
-  } catch {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Perfil de ${alias}`,
-          text: `Mira mi perfil en SERIESTOPIA`,
-          url: urlLarga
-        });
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        copiarAlPortapapeles(urlLarga);
-      }
-    } else {
-      copiarAlPortapapeles(urlLarga);
-    }
+  } else {
+    compartirRedesSociales(url, alias);
   }
 }
 
-function copiarAlPortapapeles(texto) {
-  navigator.clipboard.writeText(texto)
-    .then(() => mostrarNotificacion('Enlace copiado', 'success'))
-    .catch(() => prompt('Copia este enlace:', texto));
+function compartirRedesSociales(url, titulo) {
+  const opciones = [
+    { nombre: 'Twitter', url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(titulo)}&url=${encodeURIComponent(url)}` },
+    { nombre: 'Facebook', url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}` },
+    { nombre: 'WhatsApp', url: `https://wa.me/?text=${encodeURIComponent(titulo + ' ' + url)}` },
+    { nombre: 'Telegram', url: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(titulo)}` }
+  ];
+  
+  let opcionesHTML = '<div style="text-align:center;">';
+  opcionesHTML += '<p style="margin-bottom:1rem;">Compartir en:</p>';
+  opcionesHTML += '<div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">';
+  
+  opciones.forEach(op => {
+    opcionesHTML += `<a href="${op.url}" target="_blank" style="background:var(--primary); color:white; padding:0.8rem 1.5rem; border-radius:10px; text-decoration:none; margin:0.5rem;">${op.nombre}</a>`;
+  });
+  
+  opcionesHTML += '</div>';
+  opcionesHTML += `<p style="margin-top:1rem;"><small>O copia este enlace: ${url}</small></p>`;
+  opcionesHTML += '</div>';
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:600px; text-align:center;">
+      <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+      <h2>Compartir</h2>
+      ${opcionesHTML}
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
 }
 
 // ============================================
@@ -1235,7 +1261,7 @@ function guardarRecordatorio() {
     tipo: esSerie ? 'serie' : 'pelicula',
     fecha: itemActual.release_date || itemActual.first_air_date || new Date().toISOString().split('T')[0],
     poster: itemActual.poster_path,
-    next_episode: itemActual.next_episode_to_air || null,
+    next_episode_to_air: itemActual.next_episode_to_air || null,
     creado: new Date().toISOString()
   };
   
@@ -1263,7 +1289,11 @@ function verRecordatorios() {
     return;
   }
 
-  recordatorios.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  recordatorios.sort((a, b) => {
+    const fechaA = a.proximoEpisodio || a.fecha;
+    const fechaB = b.proximoEpisodio || b.fecha;
+    return new Date(fechaA) - new Date(fechaB);
+  });
 
   const hoy = new Date();
   hoy.setHours(0,0,0,0);
@@ -1274,25 +1304,28 @@ function verRecordatorios() {
       ? `https://image.tmdb.org/t/p/w92${rec.poster}`
       : 'https://via.placeholder.com/52x76?text=?';
 
-    const fechaRec = new Date(rec.fecha + 'T12:00:00');
+    const fechaRec = new Date((rec.proximoEpisodio || rec.fecha) + 'T12:00:00');
     const diffDays = Math.ceil((fechaRec - hoy) / (1000 * 60 * 60 * 24));
-    let emoji = '\u{1F4CC}';
-    if (diffDays === 0) emoji = '\u{1F534}';
-    else if (diffDays === 1) emoji = '\u{1F535}';
-    else if (diffDays < 0) emoji = '\u2705';
-    const estadoHTML = `<span class="rec-modal-estado">${emoji} ${rec.fecha}</span>`;
+    let emoji = '📅';
+    let estadoTexto = rec.proximoEpisodio || rec.fecha;
+    
+    if (diffDays === 0) {
+      emoji = '🔴';
+      estadoTexto = 'HOY';
+    } else if (diffDays === 1) {
+      emoji = '🔵';
+      estadoTexto = 'MAÑANA';
+    } else if (diffDays < 0) {
+      emoji = '✅';
+    }
+    
+    const estadoHTML = `<span class="rec-modal-estado">${emoji} ${estadoTexto}</span>`;
 
     let episodioHTML = '';
-    if (rec.proximoEpisodio) {
-      const diffEp = Math.ceil((new Date(rec.proximoEpisodio + 'T12:00:00') - hoy) / (1000 * 60 * 60 * 24));
-      let epEmoji = '\u{1F4CC}'; let epLabel = rec.proximoEpisodio;
-      if (diffEp === 0) { epEmoji = '\u{1F534}'; epLabel = 'HOY'; }
-      else if (diffEp === 1) { epEmoji = '\u{1F535}'; epLabel = 'MAÑANA'; }
-      else if (diffEp > 0 && diffEp <= 7) epLabel = `en ${diffEp} días (${rec.proximoEpisodio})`;
-      const esProximo = diffEp >= 0 && diffEp <= 7;
+    if (rec.proximoEpisodio && rec.temporada && rec.episodio) {
       episodioHTML = `
-        <div class="rec-modal-episodio${esProximo ? ' rec-modal-episodio-pronto' : ''}">
-          ${epEmoji} Próx: T${rec.temporada}E${rec.episodio} \u2014 ${epLabel}
+        <div class="rec-modal-episodio${diffDays >= 0 && diffDays <= 7 ? ' rec-modal-episodio-pronto' : ''}">
+          📺 T${rec.temporada}E${rec.episodio}
         </div>`;
     }
 
@@ -1304,7 +1337,7 @@ function verRecordatorios() {
           ${estadoHTML}
           ${episodioHTML}
         </div>
-        <button class="rec-modal-borrar" onclick="event.stopPropagation(); eliminarRecordatorio(${rec.id})" title="Eliminar">\u2715</button>
+        <button class="rec-modal-borrar" onclick="event.stopPropagation(); eliminarRecordatorio(${rec.id})" title="Eliminar">✕</button>
       </div>`;
   });
 
@@ -1677,8 +1710,8 @@ function renderAgendaLote(reset = false) {
     
     if (fechaObj) {
       etiqueta = `${fechaObj.getDate()} de ${MESES[fechaObj.getMonth()]}`;
-      if (+fechaObj === +hoy) etiqueta = 'HOY - ' + etiqueta;
-      else if (+fechaObj === +manana) etiqueta = 'MAÑANA - ' + etiqueta;
+      if (+fechaObj === +hoy) etiqueta = '🔴 HOY - ' + etiqueta;
+      else if (+fechaObj === +manana) etiqueta = '🔵 MAÑANA - ' + etiqueta;
     }
     
     const bloque = document.createElement('div');
@@ -1751,7 +1784,7 @@ async function abrirModalAgenda(tmdbId) {
 }
 
 // ============================================
-// PARA TI - RECOMENDACIONES
+// PARA TI - RECOMENDACIONES (CORREGIDO PARA SERIES)
 // ============================================
 function cargarPreferenciasOnboarding() {
   const grid = document.getElementById('generosGrid');
@@ -1887,6 +1920,11 @@ async function cargarRecomendaciones(pref) {
       url += `&with_watch_providers=${pref.plataformas.join('|')}`;
     }
     
+    // Añadir filtros específicos para series
+    if (tipoActual === 'tv') {
+      url += '&include_null_first_air_dates=false&first_air_date.lte=' + new Date().toISOString().split('T')[0];
+    }
+    
     const res = await fetch(url);
     const data = await res.json();
     
@@ -1896,6 +1934,7 @@ async function cargarRecomendaciones(pref) {
       return;
     }
     
+    // Procesar las primeras 20 para series también
     const items = await Promise.all(
       data.results.slice(0, 20).map(i => enriquecerConPlataformas(i, tipoActual))
     );
