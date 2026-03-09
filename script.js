@@ -27,7 +27,7 @@ let todosLosItemsAgenda = [];
 let agendaItemsVisibles = 0;
 const agendaBatchSize = 24;
 const AGENDA_CACHE_TIME = 3600000;
-let filtrosAgenda = { fecha: 'week', plataforma: 'all' }; // CAMBIADO: week por defecto
+let filtrosAgenda = { fecha: 'week', plataforma: 'all' };
 
 // Variables de "Para ti"
 let prefTipoActual = 'ambos';
@@ -403,7 +403,7 @@ async function cargarPeliculas(reset = false) {
 }
 
 // ============================================
-// SERIES
+// SERIES - CORREGIDO (UNA PÁGINA PARA ESTRENOS)
 // ============================================
 function cambiarFiltroSeries(filtro) {
   if (perfilCompartido) return;
@@ -423,9 +423,12 @@ async function cargarSeries(reset = false) {
   mostrarLoader('seriesContainer');
   
   let url;
+  let maxPages = 10;
+  
   switch(filtroSeries) {
     case 'latest':
       url = `${BASEURL}tv/on_the_air?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
+      maxPages = 1; // SOLO UNA PÁGINA PARA ESTRENOS
       break;
     case 'popular':
       url = `${BASEURL}tv/popular?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
@@ -435,6 +438,7 @@ async function cargarSeries(reset = false) {
       break;
     default:
       url = `${BASEURL}tv/on_the_air?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
+      maxPages = 1;
   }
   
   try {
@@ -450,7 +454,10 @@ async function cargarSeries(reset = false) {
       agregarResultados(items, 'seriesContainer');
     }
     
-    seriesPage++;
+    // Solo incrementar si no hemos llegado al máximo
+    if (seriesPage < maxPages) {
+      seriesPage++;
+    }
   } catch (error) {
     ocultarLoader('seriesContainer');
     mostrarNotificacion('Error cargando series', 'error');
@@ -565,21 +572,6 @@ function crearTarjetaHTML(item) {
     
     let badgeClass = 'badge-proximo';
     let emoji = '📅';
-    let texto = '';
-    
-    if (diffDays === 0) {
-      badgeClass += ' badge-hoy';
-      emoji = '🔴';
-      texto = 'HOY';
-    } else if (diffDays === 1) {
-      badgeClass += ' badge-manana';
-      emoji = '🔵';
-      texto = 'MAÑANA';
-    } else if (diffDays > 0 && diffDays <= 7) {
-      texto = `en ${diffDays} días`;
-    } else {
-      texto = item.next_episode_to_air.air_date;
-    }
     
     const diaSemana = nextDate ? DIAS[nextDate.getDay()] : '';
     const fechaTexto = diffDays === 0 ? 'HOY' : 
@@ -885,6 +877,9 @@ function renombrarLista(id) {
   renderListas();
 }
 
+// ============================================
+// ELIMINAR LISTA - CORREGIDO CON CONFIRMACIÓN
+// ============================================
 function eliminarLista(id) {
   if (perfilCompartido) {
     mostrarNotificacion('No puedes editar un perfil compartido', 'error');
@@ -892,12 +887,25 @@ function eliminarLista(id) {
   }
   
   const listas = getListas();
+  const lista = listas.find(l => l.id === id);
   
-  if (!confirm('¿Eliminar esta lista y todo su contenido?')) return;
+  if (!lista) return;
   
-  guardarListas(listas.filter(l => l.id !== id));
+  // Mostrar confirmación con el nombre de la lista y número de items
+  const mensaje = `¿Estás seguro de que quieres eliminar la lista "${lista.nombre}"?\n\nEsta lista contiene ${lista.items.length} elementos.\n\n⚠️ Esta acción NO SE PUEDE DESHACER.`;
+  
+  if (!confirm(mensaje)) return;
+  
+  // Filtrar la lista a eliminar
+  const nuevasListas = listas.filter(l => l.id !== id);
+  
+  // Guardar las listas actualizadas
+  guardarListas(nuevasListas);
+  
+  // Renderizar de nuevo
   renderListas();
-  mostrarNotificacion('Lista eliminada', 'success');
+  
+  mostrarNotificacion(`Lista "${lista.nombre}" eliminada`, 'success');
 }
 
 // ============================================
@@ -1013,7 +1021,7 @@ function eliminarDeLista(itemId, listaId, event) {
 }
 
 // ============================================
-// RENDERIZAR LISTAS CON PRÓXIMOS EPISODIOS
+// RENDERIZAR LISTAS
 // ============================================
 function renderListas() {
   const listas = getListas();
@@ -1140,7 +1148,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS Y PERFIL POR REDES SOCIALES
+// COMPARTIR LISTAS Y PERFIL
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -1470,7 +1478,7 @@ async function verTrailer() {
 }
 
 // ============================================
-// AGENDA - CORREGIDA (SEMANAL Y FECHAS CORRECTAS)
+// AGENDA
 // ============================================
 function aplicarFiltrosAgenda() {
   filtrosAgenda.fecha = document.getElementById('filtroFechaAgenda').value;
@@ -1491,9 +1499,8 @@ function getRangoAgenda() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   
-  // CORREGIDO: Usar la fecha actual como inicio
   const fechaInicio = hoy;
-  let dias = 7; // Por defecto una semana
+  let dias = 7;
   
   if (filtrosAgenda.fecha === 'week') dias = 7;
   else if (filtrosAgenda.fecha === 'month') dias = 30;
@@ -1523,7 +1530,7 @@ async function obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin) {
   const vistos = new Set();
   
   await Promise.all(providerIds.map(async (pid) => {
-    for (let page = 1; page <= 2; page++) { // Solo 2 páginas para hacerlo más rápido
+    for (let page = 1; page <= 2; page++) {
       try {
         const url = `${BASEURL}discover/tv?api_key=${APIKEY}&language=es-ES&watch_region=ES`
           + `&with_watch_providers=${pid}&air_date.gte=${fechaInicio}&air_date.lte=${fechaFin}`
@@ -1556,10 +1563,7 @@ async function obtenerEpisodiosSemana(serieId, fechaInicio, fechaFin) {
     const detalle = await res.json();
     const episodios = [];
     
-    // Solo obtener información de las últimas temporadas para hacerlo más rápido
     const seasons = (detalle.seasons || []).filter(s => s.season_number > 0 && s.air_date);
-    
-    // Limitar a las últimas 3 temporadas para velocidad
     const ultimasSeasons = seasons.slice(-3);
     
     await Promise.all(ultimasSeasons.map(async (t) => {
@@ -1620,12 +1624,10 @@ async function cargarAgenda(reset = false) {
     const fechaFin = getDateISO(sumarDias(hoy, dias));
     const providerIds = AGENDA_PROVIDERS[filtrosAgenda.plataforma] || AGENDA_PROVIDERS.all;
     
-    console.log('Buscando episodios desde', fechaInicio, 'hasta', fechaFin);
-    
     const series = await obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin);
     const items = [];
     
-    await Promise.all(series.slice(0, 30).map(async (serie) => { // Limitar a 30 series para velocidad
+    await Promise.all(series.slice(0, 30).map(async (serie) => {
       const episodios = await obtenerEpisodiosSemana(serie.id, fechaInicio, fechaFin);
       if (!episodios.length) return;
       
@@ -1671,8 +1673,6 @@ async function cargarAgenda(reset = false) {
     
     todosLosItemsAgenda = items.sort((a,b) => a.fecha.localeCompare(b.fecha));
     localStorage.setItem(cacheKey, JSON.stringify({ time: Date.now(), data: todosLosItemsAgenda }));
-    
-    console.log(`Encontrados ${todosLosItemsAgenda.length} episodios`);
     
     ocultarLoader('agendaContainer');
     agendaItemsVisibles = 0;
@@ -1798,7 +1798,7 @@ async function abrirModalAgenda(tmdbId) {
 }
 
 // ============================================
-// PARA TI - RECOMENDACIONES (CORREGIDO PARA SERIES)
+// PARA TI - RECOMENDACIONES
 // ============================================
 function cargarPreferenciasOnboarding() {
   const grid = document.getElementById('generosGrid');
@@ -1927,32 +1927,25 @@ async function cargarRecomendaciones(pref) {
   }
   
   try {
-    const generosStr = pref.generos.join('|'); // CAMBIADO: usar pipe para múltiples géneros
+    const generosStr = pref.generos.join('|');
     let url = `${BASEURL}discover/${tipoActual}?api_key=${APIKEY}&language=es-ES&watch_region=ES&with_genres=${generosStr}&sort_by=popularity.desc&vote_count.gte=10&page=1`;
     
-    // Añadir filtros de plataformas si existen
     if (pref.plataformas && pref.plataformas.length > 0) {
       url += `&with_watch_providers=${pref.plataformas.join('|')}`;
     }
     
-    // Filtros específicos para series
     if (tipoActual === 'tv') {
       url += '&include_null_first_air_dates=false';
       url += '&first_air_date.lte=' + new Date().toISOString().split('T')[0];
     }
     
-    // Filtros específicos para películas
     if (tipoActual === 'movie') {
       url += '&include_video=false';
       url += '&primary_release_date.lte=' + new Date().toISOString().split('T')[0];
     }
     
-    console.log('URL de recomendaciones:', url); // Para debug
-    
     const res = await fetch(url);
     const data = await res.json();
-    
-    console.log('Resultados para', tipoActual, data.results ? data.results.length : 0); // Para debug
     
     if (!data.results || data.results.length === 0) {
       ocultarLoader('paratiContainer');
@@ -1960,7 +1953,7 @@ async function cargarRecomendaciones(pref) {
       return;
     }
     
-    // Procesar los resultados
+    // Cargar 20 resultados
     const items = await Promise.all(
       data.results.slice(0, 20).map(i => enriquecerConPlataformas(i, tipoActual))
     );
