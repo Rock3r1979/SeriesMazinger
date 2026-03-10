@@ -15,7 +15,8 @@
       <button onclick="mostrarSeccion('tendencias')">Tendencias</button>
       <button onclick="mostrarSeccion('peliculas')">Películas</button>
       <button onclick="mostrarSeccion('series')">Series</button>
-      <button onclick="mostrarSeccion('agenda')">Agenda</button>
+      <button onclick="mostrarSeccion('agenda')">Estrenos</button>
+      <button onclick="mostrarSeccion('calendario')">🌍 Calendario Mundial</button>
       <button onclick="mostrarSeccion('parati')">Para Ti</button>
       <button onclick="mostrarSeccion('miLista')">Mis Listas</button>
       <button onclick="mostrarSeccion('perfil')">Perfil</button>
@@ -54,7 +55,7 @@
       <div id="seriesContainer" class="grid-container"></div>
     </section>
 
-    <!-- AGENDA -->
+    <!-- AGENDA DE ESTRENOS (TMDB) -->
     <section id="agenda" class="seccion">
       <div class="filtros-agenda">
         <select id="filtroFechaAgenda" onchange="aplicarFiltrosAgenda()">
@@ -76,6 +77,54 @@
       </div>
       <div id="agendaStats" class="agenda-stats"></div>
       <div id="agendaContainer"></div>
+    </section>
+
+    <!-- NUEVA SECCIÓN: CALENDARIO MUNDIAL (TVMAZE) -->
+    <section id="calendario" class="seccion">
+      <div class="calendario-header">
+        <h2>🌍 Calendario Mundial de Series</h2>
+        <p class="calendario-subtitle">Programación de canales y plataformas de todo el mundo</p>
+      </div>
+      
+      <div class="calendario-filtros">
+        <div class="filtro-grupo">
+          <label for="paisCalendario">País:</label>
+          <select id="paisCalendario" class="calendario-select">
+            <option value="US">Estados Unidos</option>
+            <option value="GB">Reino Unido</option>
+            <option value="ES" selected>España</option>
+            <option value="MX">México</option>
+            <option value="AR">Argentina</option>
+            <option value="CL">Chile</option>
+            <option value="CO">Colombia</option>
+            <option value="FR">Francia</option>
+            <option value="DE">Alemania</option>
+            <option value="IT">Italia</option>
+            <option value="JP">Japón</option>
+            <option value="KR">Corea del Sur</option>
+          </select>
+        </div>
+        
+        <div class="filtro-grupo">
+          <label for="fechaCalendario">Fecha:</label>
+          <input type="date" id="fechaCalendario" class="calendario-date">
+        </div>
+        
+        <div class="filtro-grupo">
+          <button class="btn-calendario" onclick="cargarCalendarioPorPais()">Buscar</button>
+          <button class="btn-calendario btn-secundario" onclick="cargarCalendarioHoy()">Hoy</button>
+        </div>
+      </div>
+      
+      <div class="calendario-acciones">
+        <button class="btn-mundial" onclick="cargarCalendarioMundial()">
+          🌐 Ver Calendario Mundial Completo
+        </button>
+        <span class="mundial-nota">(Todos los episodios futuros conocidos)</span>
+      </div>
+      
+      <div id="calendarioStats" class="calendario-stats"></div>
+      <div id="calendarioContainer" class="calendario-grid"></div>
     </section>
 
     <!-- PARA TI -->
@@ -237,6 +286,24 @@
             </p>
             <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" class="tmdb-link">
               themoviedb.org
+            </a>
+          </div>
+        </div>
+
+        <!-- Atribución TVmaze -->
+        <div class="creditos-card">
+          <h2>Calendario Mundial por</h2>
+          <div class="tvmaze-attribution">
+            <a href="https://www.tvmaze.com/" target="_blank" rel="noopener noreferrer" class="tvmaze-logo-link">
+              <img src="https://static.tvmaze.com/images/tvm-header-logo.png" 
+                   alt="TVmaze" 
+                   class="tvmaze-logo">
+            </a>
+            <p class="tvmaze-text">
+              Datos de programación proporcionados por TVmaze.com
+            </p>
+            <a href="https://www.tvmaze.com/" target="_blank" rel="noopener noreferrer" class="tvmaze-link">
+              tvmaze.com
             </a>
           </div>
         </div>
