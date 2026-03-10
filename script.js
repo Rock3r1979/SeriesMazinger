@@ -29,9 +29,11 @@ const agendaBatchSize = 24;
 const AGENDA_CACHE_TIME = 3600000;
 let filtrosAgenda = { fecha: 'week', plataforma: 'all' };
 
-// Variables de "Para ti"
-let prefTipoActual = 'ambos';
-let paratiTabActual = 'tv';
+// Variables de "Para ti" - Scroll infinito
+let paratiPage = 1;
+let paratiTotalPages = 1;
+let paratiPrefActual = null;
+let paratiCargando = false;
 
 // ============================================
 // CONSTANTES
@@ -146,7 +148,7 @@ function configurarManejadorAndroid() {
 }
 
 // ============================================
-// PERFIL COMPARTIDO (SOLO VISUALIZACIÓN)
+// PERFIL COMPARTIDO
 // ============================================
 function cargarPerfilCompartido(data) {
   try {
@@ -284,7 +286,7 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 // ============================================
-// SCROLL INFINITO
+// SCROLL INFINITO (INCLUYE PARA TI)
 // ============================================
 window.addEventListener('scroll', () => {
   const cercaDelFinal = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500;
@@ -306,6 +308,11 @@ window.addEventListener('scroll', () => {
   } else if (id === 'agenda' && !agendaCargando) {
     if (agendaItemsVisibles < todosLosItemsAgenda.length) {
       cargarMasAgenda();
+    }
+  } else if (id === 'parati' && !paratiCargando && paratiPage <= paratiTotalPages && paratiPage <= 10) {
+    const pref = getPreferencias();
+    if (pref) {
+      cargarRecomendaciones(pref, false);
     }
   }
 }, { passive: true });
@@ -403,7 +410,7 @@ async function cargarPeliculas(reset = false) {
 }
 
 // ============================================
-// SERIES - CORREGIDO (UNA PÁGINA PARA ESTRENOS)
+// SERIES
 // ============================================
 function cambiarFiltroSeries(filtro) {
   if (perfilCompartido) return;
@@ -428,7 +435,7 @@ async function cargarSeries(reset = false) {
   switch(filtroSeries) {
     case 'latest':
       url = `${BASEURL}tv/on_the_air?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
-      maxPages = 1; // SOLO UNA PÁGINA PARA ESTRENOS
+      maxPages = 1;
       break;
     case 'popular':
       url = `${BASEURL}tv/popular?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
@@ -454,7 +461,6 @@ async function cargarSeries(reset = false) {
       agregarResultados(items, 'seriesContainer');
     }
     
-    // Solo incrementar si no hemos llegado al máximo
     if (seriesPage < maxPages) {
       seriesPage++;
     }
@@ -511,7 +517,7 @@ async function cargarTendencias(reset = false) {
 }
 
 // ============================================
-// ENRIQUECER CON PLATAFORMAS Y PRÓXIMOS EPISODIOS
+// ENRIQUECER CON PLATAFORMAS
 // ============================================
 async function enriquecerConPlataformas(item, tipo) {
   try {
@@ -630,7 +636,7 @@ function agregarResultados(items, containerId) {
 }
 
 // ============================================
-// MODAL
+// MODAL CON ESTRELLAS CORREGIDAS
 // ============================================
 function abrirModal(item) {
   itemActual = item;
@@ -728,7 +734,7 @@ async function cargarTemporadas(serieId) {
 }
 
 // ============================================
-// PUNTUACIÓN CON ESTRELLAS
+// PUNTUACIÓN CON ESTRELLAS (CORREGIDO)
 // ============================================
 function dibujarEstrellas(item) {
   const container = document.getElementById('estrellasSerie');
@@ -737,6 +743,7 @@ function dibujarEstrellas(item) {
   const listas = getListas();
   let puntuacionActual = 0;
   
+  // Buscar puntuación en todas las listas
   for (let lista of listas) {
     const encontrado = lista.items.find(i => i.id == item.id);
     if (encontrado && encontrado.miPuntuacion) {
@@ -745,11 +752,11 @@ function dibujarEstrellas(item) {
     }
   }
   
+  // Crear estrellas
   for (let i = 1; i <= 5; i++) {
     const star = document.createElement('span');
-    star.className = 'star';
+    star.className = 'star' + (i <= puntuacionActual ? ' active' : '');
     star.innerHTML = '★';
-    star.style.cssText = 'font-size:2rem; cursor:pointer; margin:0 5px; color:' + (i <= puntuacionActual ? '#ffd700' : '#555');
     star.onclick = () => puntuarItem(item, i);
     container.appendChild(star);
   }
@@ -759,6 +766,7 @@ function puntuarItem(item, puntuacion) {
   const listas = getListas();
   let puntuado = false;
   
+  // Actualizar puntuación en listas existentes
   listas.forEach(lista => {
     const idx = lista.items.findIndex(i => i.id == item.id);
     if (idx !== -1) {
@@ -767,6 +775,7 @@ function puntuarItem(item, puntuacion) {
     }
   });
   
+  // Si no está en ninguna lista, añadirlo a la primera
   if (!puntuado && listas.length > 0) {
     listas[0].items.push({
       id: item.id,
@@ -789,12 +798,12 @@ function puntuarItem(item, puntuacion) {
   }
   
   guardarListas(listas);
-  dibujarEstrellas(item);
+  dibujarEstrellas(item); // Redibujar para mostrar la puntuación actualizada
   mostrarNotificacion('Puntuación guardada', 'success');
 }
 
 // ============================================
-// SISTEMA DE LISTAS MÚLTIPLES
+// SISTEMA DE LISTAS
 // ============================================
 function getListas() {
   const raw = localStorage.getItem('listas');
@@ -877,9 +886,6 @@ function renombrarLista(id) {
   renderListas();
 }
 
-// ============================================
-// ELIMINAR LISTA - CORREGIDO CON CONFIRMACIÓN
-// ============================================
 function eliminarLista(id) {
   if (perfilCompartido) {
     mostrarNotificacion('No puedes editar un perfil compartido', 'error');
@@ -891,25 +897,18 @@ function eliminarLista(id) {
   
   if (!lista) return;
   
-  // Mostrar confirmación con el nombre de la lista y número de items
   const mensaje = `¿Estás seguro de que quieres eliminar la lista "${lista.nombre}"?\n\nEsta lista contiene ${lista.items.length} elementos.\n\n⚠️ Esta acción NO SE PUEDE DESHACER.`;
   
   if (!confirm(mensaje)) return;
   
-  // Filtrar la lista a eliminar
   const nuevasListas = listas.filter(l => l.id !== id);
-  
-  // Guardar las listas actualizadas
   guardarListas(nuevasListas);
-  
-  // Renderizar de nuevo
   renderListas();
-  
   mostrarNotificacion(`Lista "${lista.nombre}" eliminada`, 'success');
 }
 
 // ============================================
-// SELECTOR DE LISTAS MODAL
+// SELECTOR DE LISTAS
 // ============================================
 function mostrarSelectorListas() {
   if (!itemActual || perfilCompartido) return;
@@ -927,7 +926,6 @@ function mostrarSelectorListas() {
       const opcion = document.createElement('div');
       opcion.className = 'lista-opcion';
       opcion.setAttribute('data-lista-id', lista.id);
-      opcion.setAttribute('data-ya-esta', yaEsta);
       opcion.innerHTML = `
         <span class="nombre">${lista.nombre}</span>
         <span class="contador">${lista.items.length} items</span>
@@ -938,15 +936,10 @@ function mostrarSelectorListas() {
         opcion.style.pointerEvents = 'none';
         opcion.title = 'Ya está en esta lista';
       } else {
-        if (!esAndroid) {
-          opcion.onclick = function(e) {
-            e.preventDefault();
-            const listaId = this.getAttribute('data-lista-id');
-            añadirALista(listaId);
-          };
-        } else {
-          opcion.style.cursor = 'pointer';
-        }
+        opcion.onclick = function() {
+          const listaId = this.getAttribute('data-lista-id');
+          añadirALista(listaId);
+        };
       }
       
       selector.appendChild(opcion);
@@ -960,9 +953,6 @@ function cerrarSelectorListas() {
   document.getElementById('selectorListasModal').style.display = 'none';
 }
 
-// ============================================
-// AÑADIR A LISTA
-// ============================================
 function añadirALista(listaId) {
   if (!itemActual || perfilCompartido) return;
   
@@ -1148,7 +1138,7 @@ function renderListas() {
 }
 
 // ============================================
-// COMPARTIR LISTAS Y PERFIL
+// COMPARTIR
 // ============================================
 async function compartirLista(listaId) {
   const listas = getListas();
@@ -1798,7 +1788,7 @@ async function abrirModalAgenda(tmdbId) {
 }
 
 // ============================================
-// PARA TI - RECOMENDACIONES
+// PARA TI - RECOMENDACIONES CON SCROLL INFINITO
 // ============================================
 function cargarPreferenciasOnboarding() {
   const grid = document.getElementById('generosGrid');
@@ -1855,7 +1845,9 @@ function mostrarSeccionParaTi() {
   } else {
     onboarding.style.display = 'none';
     resultados.style.display = 'block';
-    cargarRecomendaciones(pref);
+    paratiPage = 1;
+    paratiPrefActual = pref;
+    cargarRecomendaciones(pref, true);
   }
 }
 
@@ -1893,10 +1885,13 @@ function guardarPreferencias() {
   
   document.getElementById('paratiOnboarding').style.display = 'none';
   document.getElementById('paratiResultados').style.display = 'block';
-  cargarRecomendaciones(pref);
+  paratiPage = 1;
+  cargarRecomendaciones(pref, true);
 }
 
-async function cargarRecomendaciones(pref) {
+async function cargarRecomendaciones(pref, reset = true) {
+  if (paratiCargando) return;
+  
   let tipoActual = paratiTabActual;
   
   if (pref.tipo === 'tv') tipoActual = 'tv';
@@ -1910,25 +1905,18 @@ async function cargarRecomendaciones(pref) {
     tabsEl.style.display = pref.tipo === 'ambos' ? 'flex' : 'none';
   }
   
-  mostrarLoader('paratiContainer');
-  
-  const cacheKey = `parati_${tipoActual}_${pref.generos.join('-')}_${pref.plataformas.join('-')}`;
-  const cached = localStorage.getItem(cacheKey);
-  
-  if (cached) {
-    try {
-      const c = JSON.parse(cached);
-      if (Date.now() - c.time < 3600000) {
-        ocultarLoader('paratiContainer');
-        mostrarResultados(c.data, 'paratiContainer');
-        return;
-      }
-    } catch {}
+  if (reset) {
+    paratiPage = 1;
+    paratiPrefActual = pref;
+    document.getElementById('paratiContainer').innerHTML = '';
   }
+  
+  paratiCargando = true;
+  mostrarLoader('paratiContainer');
   
   try {
     const generosStr = pref.generos.join('|');
-    let url = `${BASEURL}discover/${tipoActual}?api_key=${APIKEY}&language=es-ES&watch_region=ES&with_genres=${generosStr}&sort_by=popularity.desc&vote_count.gte=10&page=1`;
+    let url = `${BASEURL}discover/${tipoActual}?api_key=${APIKEY}&language=es-ES&watch_region=ES&with_genres=${generosStr}&sort_by=popularity.desc&vote_count.gte=10&page=${paratiPage}`;
     
     if (pref.plataformas && pref.plataformas.length > 0) {
       url += `&with_watch_providers=${pref.plataformas.join('|')}`;
@@ -1949,30 +1937,43 @@ async function cargarRecomendaciones(pref) {
     
     if (!data.results || data.results.length === 0) {
       ocultarLoader('paratiContainer');
-      document.getElementById('paratiContainer').innerHTML = '<p class="sin-resultados">No hay recomendaciones para estos filtros</p>';
+      if (reset) {
+        document.getElementById('paratiContainer').innerHTML = '<p class="sin-resultados">No hay recomendaciones para estos filtros</p>';
+      }
+      paratiCargando = false;
       return;
     }
     
-    // Cargar 20 resultados
+    paratiTotalPages = data.total_pages || 1;
+    
     const items = await Promise.all(
-      data.results.slice(0, 20).map(i => enriquecerConPlataformas(i, tipoActual))
+      data.results.map(i => enriquecerConPlataformas(i, tipoActual))
     );
     
-    localStorage.setItem(cacheKey, JSON.stringify({ time: Date.now(), data: items }));
-    
     ocultarLoader('paratiContainer');
-    mostrarResultados(items, 'paratiContainer');
+    
+    if (reset) {
+      mostrarResultados(items, 'paratiContainer');
+    } else {
+      agregarResultados(items, 'paratiContainer');
+    }
+    
+    paratiPage++;
+    paratiCargando = false;
+    
   } catch (error) {
     console.error('Error en recomendaciones:', error);
     ocultarLoader('paratiContainer');
     mostrarNotificacion('Error cargando recomendaciones', 'error');
+    paratiCargando = false;
   }
 }
 
 function cambiarTabParaTi(tipo) {
   paratiTabActual = tipo;
+  paratiPage = 1;
   const pref = getPreferencias();
-  if (pref) cargarRecomendaciones(pref);
+  if (pref) cargarRecomendaciones(pref, true);
 }
 
 // ============================================
@@ -2026,6 +2027,9 @@ function renderAvatarSelector() {
   }
 }
 
+// ============================================
+// SUBIR AVATAR - CORREGIDO (5MB)
+// ============================================
 function subirAvatarImagen(event) {
   if (perfilCompartido) {
     mostrarNotificacion('No puedes editar un perfil compartido', 'error');
@@ -2035,8 +2039,9 @@ function subirAvatarImagen(event) {
   const file = event.target.files[0];
   if (!file) return;
   
-  if (file.size > 500000) {
-    mostrarNotificacion('La imagen es demasiado grande (máx 500KB)', 'error');
+  // Aumentado a 5MB (5 * 1024 * 1024)
+  if (file.size > 5 * 1024 * 1024) {
+    mostrarNotificacion('La imagen es demasiado grande (máx 5MB)', 'error');
     return;
   }
   
