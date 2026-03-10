@@ -103,6 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('listas', JSON.stringify([]));
   }
   
+  // Inicializar vistos si no existen
+  if (!localStorage.getItem('vistos')) {
+    localStorage.setItem('vistos', JSON.stringify([]));
+  }
+  
   if (perfilData) {
     cargarPerfilCompartido(perfilData);
     mostrarSeccion('perfil');
@@ -286,7 +291,7 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 // ============================================
-// SCROLL INFINITO (INCLUYE PARA TI)
+// SCROLL INFINITO
 // ============================================
 window.addEventListener('scroll', () => {
   const cercaDelFinal = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500;
@@ -555,6 +560,11 @@ function crearTarjetaHTML(item) {
     : 'https://via.placeholder.com/300x450?text=Sin+imagen';
   const nota = item.vote_average || 0;
   
+  // Comprobar si está visto
+  const vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
+  const estaVisto = vistos.includes(item.id);
+  const vistoBadge = estaVisto ? '<div class="visto-badge">✅ Visto</div>' : '';
+  
   let plataformasHTML = '';
   if (item.plataformas && item.plataformas.length > 0) {
     plataformasHTML = '<div class="card-plataformas">';
@@ -593,6 +603,7 @@ function crearTarjetaHTML(item) {
   }
   
   return `
+    ${vistoBadge}
     <img src="${poster}" loading="lazy" alt="${titulo}">
     <h4>${titulo}</h4>
     <p>⭐ ${nota.toFixed(1)}</p>
@@ -636,7 +647,7 @@ function agregarResultados(items, containerId) {
 }
 
 // ============================================
-// MODAL CON ESTRELLAS CORREGIDAS
+// MODAL
 // ============================================
 function abrirModal(item) {
   itemActual = item;
@@ -645,6 +656,15 @@ function abrirModal(item) {
   const descripcion = item.overview || 'Sin descripción disponible';
   const fecha = item.release_date || item.first_air_date || 'Fecha desconocida';
   const nota = item.vote_average || 0;
+  
+  // Comprobar si está visto
+  const vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
+  const estaVisto = vistos.includes(item.id);
+  const botonVisto = document.getElementById('marcarVisto');
+  if (botonVisto) {
+    botonVisto.textContent = estaVisto ? '✅ Quitar visto' : '✅ Marcar visto';
+    botonVisto.style.background = estaVisto ? '#ff9800' : '#4CAF50';
+  }
   
   let proximoHTML = '';
   if (item.next_episode_to_air) {
@@ -740,17 +760,9 @@ function dibujarEstrellas(item) {
   const container = document.getElementById('estrellasSerie');
   container.innerHTML = '<h3>Tu puntuación:</h3>';
   
-  const listas = getListas();
-  let puntuacionActual = 0;
-  
-  // Buscar puntuación en todas las listas
-  for (let lista of listas) {
-    const encontrado = lista.items.find(i => i.id == item.id);
-    if (encontrado && encontrado.miPuntuacion) {
-      puntuacionActual = encontrado.miPuntuacion;
-      break;
-    }
-  }
+  // Buscar puntuación en localStorage de puntuaciones (independiente de listas)
+  let puntuaciones = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
+  let puntuacionActual = puntuaciones[item.id] || 0;
   
   // Crear estrellas
   for (let i = 1; i <= 5; i++) {
@@ -763,43 +775,58 @@ function dibujarEstrellas(item) {
 }
 
 function puntuarItem(item, puntuacion) {
-  const listas = getListas();
-  let puntuado = false;
+  // Guardar puntuación en localStorage independiente
+  let puntuaciones = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
+  puntuaciones[item.id] = puntuacion;
+  localStorage.setItem('puntuaciones', JSON.stringify(puntuaciones));
   
-  // Actualizar puntuación en listas existentes
+  // También actualizar en listas si existe (por compatibilidad)
+  const listas = getListas();
   listas.forEach(lista => {
     const idx = lista.items.findIndex(i => i.id == item.id);
     if (idx !== -1) {
       lista.items[idx].miPuntuacion = puntuacion;
-      puntuado = true;
     }
   });
+  guardarListas(listas);
   
-  // Si no está en ninguna lista, añadirlo a la primera
-  if (!puntuado && listas.length > 0) {
-    listas[0].items.push({
-      id: item.id,
-      title: item.title || item.name,
-      name: item.name || item.title,
-      poster_path: item.poster_path,
-      vote_average: item.vote_average,
-      release_date: item.release_date || item.first_air_date,
-      first_air_date: item.first_air_date || item.release_date,
-      overview: item.overview || '',
-      plataformas: item.plataformas || [],
-      next_episode_to_air: item.next_episode_to_air || null,
-      last_episode_to_air: item.last_episode_to_air || null,
-      number_of_seasons: item.number_of_seasons || 0,
-      number_of_episodes: item.number_of_episodes || 0,
-      status: item.status || '',
-      networks: item.networks || [],
-      miPuntuacion: puntuacion
-    });
+  dibujarEstrellas(item);
+  actualizarStatsPerfil();
+  mostrarNotificacion(`Puntuación: ${puntuacion} estrellas`, 'success');
+}
+
+// ============================================
+// MARCAR COMO VISTO (NUEVA FUNCIÓN)
+// ============================================
+function marcarComoVisto() {
+  if (!itemActual || perfilCompartido) return;
+  
+  let vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
+  const index = vistos.indexOf(itemActual.id);
+  
+  if (index === -1) {
+    // No está visto → marcar como visto
+    vistos.push(itemActual.id);
+    localStorage.setItem('vistos', JSON.stringify(vistos));
+    mostrarNotificacion('✅ Marcado como visto', 'visto');
+    
+    // Actualizar botón
+    const boton = document.getElementById('marcarVisto');
+    boton.textContent = '✅ Quitar visto';
+    boton.style.background = '#ff9800';
+  } else {
+    // Está visto → quitar visto
+    vistos.splice(index, 1);
+    localStorage.setItem('vistos', JSON.stringify(vistos));
+    mostrarNotificacion('Quitado de vistos', 'info');
+    
+    // Actualizar botón
+    const boton = document.getElementById('marcarVisto');
+    boton.textContent = '✅ Marcar visto';
+    boton.style.background = '#4CAF50';
   }
   
-  guardarListas(listas);
-  dibujarEstrellas(item); // Redibujar para mostrar la puntuación actualizada
-  mostrarNotificacion('Puntuación guardada', 'success');
+  actualizarStatsPerfil();
 }
 
 // ============================================
@@ -1066,6 +1093,11 @@ function renderListas() {
         
         const fecha = item.release_date || item.first_air_date || '';
         
+        // Comprobar si está visto
+        const vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
+        const estaVisto = vistos.includes(item.id);
+        const vistoBadge = estaVisto ? '<div class="visto-badge">✅ Visto</div>' : '';
+        
         let plataformasHTML = '';
         if (item.plataformas && item.plataformas.length > 0) {
           plataformasHTML = '<div class="card-plataformas">';
@@ -1112,6 +1144,7 @@ function renderListas() {
         }
         
         card.innerHTML = `
+          ${vistoBadge}
           <img src="${poster}" loading="lazy" alt="${item.title || item.name || ''}">
           <h4>${item.title || item.name || 'Sin título'}</h4>
           <p>⭐ ${(item.vote_average || 0).toFixed(1)}</p>
@@ -2027,9 +2060,6 @@ function renderAvatarSelector() {
   }
 }
 
-// ============================================
-// SUBIR AVATAR - CORREGIDO (5MB)
-// ============================================
 function subirAvatarImagen(event) {
   if (perfilCompartido) {
     mostrarNotificacion('No puedes editar un perfil compartido', 'error');
@@ -2039,7 +2069,6 @@ function subirAvatarImagen(event) {
   const file = event.target.files[0];
   if (!file) return;
   
-  // Aumentado a 5MB (5 * 1024 * 1024)
   if (file.size > 5 * 1024 * 1024) {
     mostrarNotificacion('La imagen es demasiado grande (máx 5MB)', 'error');
     return;
@@ -2111,16 +2140,17 @@ function cargarBio() {
 function actualizarStatsPerfil() {
   const listas = getListas();
   const recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
+  const vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
+  const puntuaciones = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
   
   const totalItems = listas.reduce((sum, lista) => sum + lista.items.length, 0);
-  const totalPuntuadas = listas.reduce((sum, lista) => 
-    sum + lista.items.filter(i => i.miPuntuacion > 0).length, 0
-  );
+  const totalPuntuadas = Object.keys(puntuaciones).length;
   
   document.getElementById('statsListas').textContent = listas.length;
   document.getElementById('statsMiLista').textContent = totalItems;
   document.getElementById('statsRecordatorios').textContent = recordatorios.length;
   document.getElementById('statsPuntuadas').textContent = totalPuntuadas;
+  document.getElementById('statsVistas').textContent = vistos.length;
 }
 
 // ============================================
