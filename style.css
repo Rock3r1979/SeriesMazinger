@@ -280,6 +280,31 @@ nav button:hover {
   transform: scale(1.2);
 }
 
+/* Estrellas en modal */
+.estrellas-container {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.estrellas-container h3 {
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.star {
+  font-size: 2rem;
+  cursor: pointer;
+  margin: 0 5px;
+  color: #555;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.star.active,
+.star:hover {
+  color: #ffd700 !important;
+  transform: scale(1.1);
+}
+
 /* ============================================ */
 /* SELECTOR DE LISTAS */
 /* ============================================ */
@@ -841,90 +866,180 @@ nav button:hover {
 }
 
 /* ============================================ */
-/* CONTACTO */
+/* CRÉDITOS */
 /* ============================================ */
-.contacto-container {
-  max-width: 800px;
+.creditos-container {
+  max-width: 900px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.creditos-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.creditos-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 30px rgba(231, 76, 60, 0.15);
+  border-color: rgba(231, 76, 60, 0.3);
+}
+
+.creditos-card h2 {
+  color: var(--primary);
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid rgba(231, 76, 60, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+.creditos-historia {
+  color: var(--text);
+  line-height: 1.8;
+  font-size: 1.1rem;
+}
+
+.creditos-historia p {
+  margin-bottom: 1rem;
+}
+
+.creditos-texto {
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.creditos-botones {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0 1rem;
+}
+
+.btn-kofi {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #13C3B0;
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1.2rem;
+  transition: all 0.3s;
+  box-shadow: 0 5px 15px rgba(19, 195, 176, 0.3);
+}
+
+.btn-kofi:hover {
+  background: #0fa89a;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(19, 195, 176, 0.5);
+}
+
+.kofi-icon {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+}
+
+.tmdb-attribution {
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 15px;
+  margin: 1rem 0;
+}
+
+.tmdb-logo-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  opacity: 0.9;
+  transition: opacity 0.3s;
+}
+
+.tmdb-logo-link:hover {
+  opacity: 1;
+}
+
+.tmdb-logo {
+  height: 40px;
+  width: auto;
+}
+
+.tmdb-text {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 1rem 0;
+  line-height: 1.5;
+}
+
+.tmdb-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s;
+}
+
+.tmdb-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+.creditos-email {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.email-link {
+  display: inline-block;
+  background: rgba(231, 76, 60, 0.1);
+  color: var(--primary);
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  text-decoration: none;
+  font-size: 1.1rem;
+  border: 2px solid var(--primary);
+  transition: all 0.3s;
+}
+
+.email-link:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+}
+
+.redes-creditos {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 1.5rem 0;
+}
+
+.red-credito {
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.3s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 100px;
   text-align: center;
 }
 
-.contacto-container h2 {
-  font-size: 2.5rem;
-  color: var(--primary);
-  margin-bottom: 2rem;
-}
-
-.redes-sociales {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin: 2rem 0;
-  flex-wrap: wrap;
-}
-
-.red-social {
-  padding: 1rem 2rem;
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-  color: white;
-  text-decoration: none;
-  transition: all 0.3s;
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-}
-
-.red-social:hover {
+.red-credito:hover {
   background: var(--primary);
-  transform: translateY(-5px);
-}
-
-.contacto-info {
-  margin: 2rem 0;
-  padding: 2rem;
-  background: rgba(255,255,255,0.05);
-  border-radius: 10px;
-}
-
-.contacto-info a {
-  color: var(--primary);
-  text-decoration: none;
-}
-
-.newsletter-form {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-}
-
-.newsletter-form input {
-  padding: 0.8rem 1.5rem;
-  border-radius: 30px;
-  border: 1px solid rgba(255,255,255,0.2);
-  background: rgba(0,0,0,0.3);
-  color: white;
-  width: 300px;
-  max-width: 100%;
-  min-height: 44px;
-}
-
-.newsletter-form button {
-  padding: 0.8rem 2rem;
-  background: var(--primary);
-  border: none;
-  border-radius: 30px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s;
-  min-height: 44px;
-}
-
-.newsletter-form button:hover {
-  background: var(--primary-dark);
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  border-color: var(--primary);
 }
 
 /* ============================================ */
@@ -1027,7 +1142,6 @@ nav button:hover {
   }
 }
 
-/* Para móviles muy pequeños */
 @media (max-width: 480px) {
   .grid-container {
     grid-template-columns: repeat(2, 1fr);
@@ -1044,6 +1158,42 @@ nav button:hover {
   
   .card h4 {
     font-size: 0.85rem;
+  }
+  
+  .creditos-card {
+    padding: 1.5rem;
+  }
+  
+  .creditos-card h2 {
+    font-size: 1.5rem;
+  }
+  
+  .creditos-historia {
+    font-size: 1rem;
+  }
+  
+  .btn-kofi {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .kofi-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .tmdb-logo {
+    height: 30px;
+  }
+  
+  .email-link {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .red-credito {
+    padding: 0.6rem 1rem;
+    min-width: 80px;
   }
 }
 
@@ -1130,241 +1280,6 @@ header.header-oculto {
   flex-shrink: 0;
   transition: background 0.2s;
   min-height: unset;
-}
-/* ============================================ */
-/* CRÉDITOS - NUEVA SECCIÓN */
-/* ============================================ */
-.creditos-container {
-  max-width: 900px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.creditos-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  padding: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.creditos-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 30px rgba(231, 76, 60, 0.15);
-  border-color: rgba(231, 76, 60, 0.3);
-}
-
-.creditos-card h2 {
-  color: var(--primary);
-  font-size: 1.8rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 2px solid rgba(231, 76, 60, 0.3);
-  padding-bottom: 0.5rem;
-}
-
-.creditos-historia {
-  color: var(--text);
-  line-height: 1.8;
-  font-size: 1.1rem;
-}
-
-.creditos-historia p {
-  margin-bottom: 1rem;
-}
-
-.creditos-texto {
-  color: var(--text);
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-  font-size: 1rem;
-}
-
-/* Botón Ko-fi */
-.creditos-botones {
-  display: flex;
-  justify-content: center;
-  margin: 2rem 0 1rem;
-}
-
-.btn-kofi {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: #13C3B0;
-  color: white;
-  padding: 1rem 2rem;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: bold;
-  font-size: 1.2rem;
-  transition: all 0.3s;
-  box-shadow: 0 5px 15px rgba(19, 195, 176, 0.3);
-}
-
-.btn-kofi:hover {
-  background: #0fa89a;
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(19, 195, 176, 0.5);
-}
-
-.kofi-icon {
-  width: 24px;
-  height: 24px;
-  filter: brightness(0) invert(1);
-}
-
-/* Atribución TMDB */
-.tmdb-attribution {
-  text-align: center;
-  padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 15px;
-  margin: 1rem 0;
-}
-
-.tmdb-logo-link {
-  display: inline-block;
-  margin-bottom: 1rem;
-  opacity: 0.9;
-  transition: opacity 0.3s;
-}
-
-.tmdb-logo-link:hover {
-  opacity: 1;
-}
-
-.tmdb-logo {
-  height: 40px;
-  width: auto;
-}
-
-.tmdb-text {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin: 1rem 0;
-  line-height: 1.5;
-}
-
-.tmdb-link {
-  color: var(--primary);
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: color 0.3s;
-}
-
-.tmdb-link:hover {
-  color: var(--primary-dark);
-  text-decoration: underline;
-}
-
-/* Email de contacto */
-.creditos-email {
-  text-align: center;
-  margin: 1.5rem 0;
-}
-
-.email-link {
-  display: inline-block;
-  background: rgba(231, 76, 60, 0.1);
-  color: var(--primary);
-  padding: 1rem 2rem;
-  border-radius: 50px;
-  text-decoration: none;
-  font-size: 1.1rem;
-  border: 2px solid var(--primary);
-  transition: all 0.3s;
-}
-
-.email-link:hover {
-  background: var(--primary);
-  color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
-}
-
-/* Redes sociales en créditos */
-.redes-creditos {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin: 1.5rem 0;
-}
-
-.red-credito {
-  background: rgba(255, 255, 255, 0.07);
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border-radius: 10px;
-  text-decoration: none;
-  transition: all 0.3s;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  min-width: 100px;
-  text-align: center;
-}
-
-.red-credito:hover {
-  background: var(--primary);
-  transform: translateY(-2px);
-  border-color: var(--primary);
-}
-
-/* Responsive para créditos */
-@media (max-width: 768px) {
-  .creditos-card {
-    padding: 1.5rem;
-  }
-  
-  .creditos-card h2 {
-    font-size: 1.5rem;
-  }
-  
-  .creditos-historia {
-    font-size: 1rem;
-  }
-  
-  .btn-kofi {
-    padding: 0.8rem 1.5rem;
-    font-size: 1rem;
-  }
-  
-  .kofi-icon {
-    width: 20px;
-    height: 20px;
-  }
-  
-  .tmdb-logo {
-    height: 30px;
-  }
-  
-  .email-link {
-    padding: 0.8rem 1.5rem;
-    font-size: 1rem;
-  }
-  
-  .red-credito {
-    padding: 0.6rem 1rem;
-    min-width: 80px;
-  }
-}
-
-@media (max-width: 480px) {
-  .creditos-card {
-    padding: 1rem;
-  }
-  
-  .redes-creditos {
-    gap: 0.5rem;
-  }
-  
-  .red-credito {
-    padding: 0.5rem 0.8rem;
-    font-size: 0.9rem;
-    min-width: 70px;
-  }
 }
 .rec-modal-borrar:hover {
   background: var(--danger);
