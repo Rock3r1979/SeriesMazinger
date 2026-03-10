@@ -163,6 +163,7 @@
               <p>Items en total: <span id="statsMiLista">0</span></p>
               <p>Recordatorios: <span id="statsRecordatorios">0</span></p>
               <p>Series puntuadas: <span id="statsPuntuadas">0</span></p>
+              <p>Vistas: <span id="statsVistas">0</span></p>
             </div>
 
             <button class="btn-compartir" onclick="compartirPerfil()">📤 Compartir perfil</button>
@@ -280,10 +281,11 @@
       <div id="temporadasContainer"></div>
       <div id="trailerContainer"></div>
       <div id="estrellasSerie" class="estrellas-container"></div>
-      <div id="acciones" class="acciones-modal">
-        <button id="agregarLista" onclick="mostrarSelectorListas()">➕ Añadir a lista</button>
-        <button id="recordar" onclick="guardarRecordatorio()">⏰ Recordatorio</button>
-        <button id="verTrailer" onclick="verTrailer()">🎬 Ver tráiler</button>
+      <div id="acciones" class="acciones-modal" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1.5rem;">
+        <button id="agregarLista" onclick="mostrarSelectorListas()" style="flex: 1; min-width: 120px;">➕ Añadir a lista</button>
+        <button id="recordar" onclick="guardarRecordatorio()" style="flex: 1; min-width: 120px;">⏰ Recordatorio</button>
+        <button id="verTrailer" onclick="verTrailer()" style="flex: 1; min-width: 120px;">🎬 Ver tráiler</button>
+        <button id="marcarVisto" onclick="marcarComoVisto()" style="flex: 1; min-width: 120px; background: #4CAF50;">✅ Marcar visto</button>
       </div>
     </div>
   </div>
