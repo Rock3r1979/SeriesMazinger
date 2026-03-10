@@ -2234,3 +2234,302 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
     toast.remove();
   }, 3000);
 }
+// ============================================
+// CALENDARIO MUNDIAL CON TVMAZE
+// ============================================
+
+// Países disponibles con sus nombres
+const PAISES = {
+  'US': 'Estados Unidos',
+  'GB': 'Reino Unido',
+  'ES': 'España',
+  'MX': 'México',
+  'AR': 'Argentina',
+  'CL': 'Chile',
+  'CO': 'Colombia',
+  'FR': 'Francia',
+  'DE': 'Alemania',
+  'IT': 'Italia',
+  'JP': 'Japón',
+  'KR': 'Corea del Sur',
+  'CA': 'Canadá',
+  'AU': 'Australia',
+  'BR': 'Brasil',
+  'PT': 'Portugal'
+};
+
+// Inicializar calendario con fecha de hoy
+function inicializarCalendario() {
+  const fechaInput = document.getElementById('fechaCalendario');
+  if (fechaInput) {
+    const hoy = new Date();
+    const año = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoy.getDate()).padStart(2, '0');
+    fechaInput.value = `${año}-${mes}-${dia}`;
+  }
+}
+
+// Formatear hora (de 12:00 a 12:00 PM)
+function formatearHora(horaStr) {
+  if (!horaStr) return 'Hora no disponible';
+  
+  // TVMaze devuelve la hora en formato HH:MM
+  const [horas, minutos] = horaStr.split(':');
+  const h = parseInt(horas);
+  
+  if (isNaN(h)) return horaStr;
+  
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hora12 = h % 12 || 12;
+  
+  return `${hora12}:${minutos} ${ampm}`;
+}
+
+// Obtener nombre del país por código
+function getNombrePais(codigo) {
+  return PAISES[codigo] || codigo;
+}
+
+// Cargar calendario por país y fecha
+async function cargarCalendarioPorPais() {
+  const pais = document.getElementById('paisCalendario').value;
+  const fecha = document.getElementById('fechaCalendario').value;
+  
+  if (!fecha) {
+    mostrarNotificacion('Selecciona una fecha', 'error');
+    return;
+  }
+  
+  mostrarLoader('calendarioContainer');
+  document.getElementById('calendarioStats').innerHTML = 'Cargando programación...';
+  
+  try {
+    const url = `https://api.tvmaze.com/schedule?country=${pais}&date=${fecha}`;
+    const respuesta = await fetch(url);
+    const datos = await respuesta.json();
+    
+    ocultarLoader('calendarioContainer');
+    
+    if (!datos || datos.length === 0) {
+      document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">No hay programación para esta fecha y país</p>';
+      document.getElementById('calendarioStats').innerHTML = '0 episodios encontrados';
+      return;
+    }
+    
+    document.getElementById('calendarioStats').innerHTML = `${datos.length} episodios encontrados en ${getNombrePais(pais)}`;
+    renderizarCalendario(datos, pais);
+    
+  } catch (error) {
+    console.error('Error cargando calendario:', error);
+    ocultarLoader('calendarioContainer');
+    document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">Error al cargar la programación</p>';
+    document.getElementById('calendarioStats').innerHTML = 'Error';
+    mostrarNotificacion('Error al cargar el calendario', 'error');
+  }
+}
+
+// Cargar calendario de hoy
+function cargarCalendarioHoy() {
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  
+  document.getElementById('fechaCalendario').value = `${año}-${mes}-${dia}`;
+  cargarCalendarioPorPais();
+}
+
+// Cargar calendario mundial completo (todos los episodios futuros)
+async function cargarCalendarioMundial() {
+  mostrarLoader('calendarioContainer');
+  document.getElementById('calendarioStats').innerHTML = 'Cargando calendario mundial... (puede tardar unos segundos)';
+  
+  try {
+    const url = 'https://api.tvmaze.com/schedule/full';
+    const respuesta = await fetch(url);
+    const datos = await respuesta.json();
+    
+    ocultarLoader('calendarioContainer');
+    
+    if (!datos || datos.length === 0) {
+      document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">No hay episodios programados</p>';
+      document.getElementById('calendarioStats').innerHTML = '0 episodios encontrados';
+      return;
+    }
+    
+    // Agrupar por fecha para mostrar
+    const episodios = datos.slice(0, 100); // Mostrar solo primeros 100 para no saturar
+    
+    document.getElementById('calendarioStats').innerHTML = `Mostrando 100 de ${datos.length} episodios futuros (calendario mundial)`;
+    
+    // Ordenar por fecha
+    episodios.sort((a, b) => new Date(a.airdate) - new Date(b.airdate));
+    
+    renderizarCalendarioMundial(episodios);
+    
+  } catch (error) {
+    console.error('Error cargando calendario mundial:', error);
+    ocultarLoader('calendarioContainer');
+    document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">Error al cargar el calendario mundial</p>';
+    document.getElementById('calendarioStats').innerHTML = 'Error';
+    mostrarNotificacion('Error al cargar el calendario mundial', 'error');
+  }
+}
+
+// Renderizar calendario por país
+function renderizarCalendario(episodios, pais) {
+  const container = document.getElementById('calendarioContainer');
+  container.innerHTML = '';
+  
+  episodios.sort((a, b) => {
+    // Ordenar por hora
+    return (a.airtime || '00:00').localeCompare(b.airtime || '00:00');
+  });
+  
+  episodios.forEach(ep => {
+    if (!ep.show) return;
+    
+    const card = document.createElement('div');
+    card.className = 'calendario-card';
+    card.onclick = () => abrirModalTVMaze(ep.show);
+    
+    const poster = ep.show.image?.medium || ep.show.image?.original || 'https://via.placeholder.com/68x100?text=No+imagen';
+    const hora = formatearHora(ep.airtime);
+    const canal = ep.show.network?.name || ep.show.webChannel?.name || 'Canal desconocido';
+    const temporada = ep.season ? `T${ep.season}` : '';
+    const numero = ep.number ? `E${ep.number}` : '';
+    const episodioTexto = temporada || numero ? `${temporada}${numero}` : 'Episodio especial';
+    
+    card.innerHTML = `
+      <img src="${poster}" class="calendario-poster" loading="lazy" onerror="this.src='https://via.placeholder.com/68x100?text=No+imagen'">
+      <div class="calendario-info">
+        <div class="calendario-titulo">${ep.show.name}</div>
+        <div class="calendario-episodio">${ep.name || episodioTexto}</div>
+        <div class="calendario-canal">📺 <strong>${canal}</strong></div>
+        <div class="calendario-hora">⏰ ${hora}</div>
+        <span class="calendario-pais">${getNombrePais(pais)}</span>
+      </div>
+    `;
+    
+    container.appendChild(card);
+  });
+}
+
+// Renderizar calendario mundial (agrupado por fecha)
+function renderizarCalendarioMundial(episodios) {
+  const container = document.getElementById('calendarioContainer');
+  container.innerHTML = '';
+  
+  // Agrupar por fecha
+  const porFecha = {};
+  episodios.forEach(ep => {
+    if (!ep.show) return;
+    const fecha = ep.airdate || 'Fecha desconocida';
+    if (!porFecha[fecha]) porFecha[fecha] = [];
+    porFecha[fecha].push(ep);
+  });
+  
+  // Mostrar agrupado
+  Object.keys(porFecha).sort().forEach(fecha => {
+    const lista = porFecha[fecha];
+    
+    const fechaObj = new Date(fecha + 'T12:00:00');
+    const fechaTexto = fechaObj.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    const grupo = document.createElement('div');
+    grupo.className = 'agenda-bloque';
+    
+    const titulo = document.createElement('h3');
+    titulo.className = 'agenda-dia-titulo';
+    titulo.innerHTML = `<span>📅 ${fechaTexto}</span><small>${lista.length} episodios</small>`;
+    grupo.appendChild(titulo);
+    
+    lista.forEach(ep => {
+      const card = document.createElement('div');
+      card.className = 'calendario-card';
+      card.onclick = () => abrirModalTVMaze(ep.show);
+      
+      const poster = ep.show.image?.medium || ep.show.image?.original || 'https://via.placeholder.com/68x100?text=No+imagen';
+      const hora = formatearHora(ep.airtime);
+      const canal = ep.show.network?.name || ep.show.webChannel?.name || 'Canal desconocido';
+      const paisCodigo = ep.show.network?.country?.code || ep.show.webChannel?.country?.code || 'US';
+      const temporada = ep.season ? `T${ep.season}` : '';
+      const numero = ep.number ? `E${ep.number}` : '';
+      const episodioTexto = temporada || numero ? `${temporada}${numero}` : 'Episodio especial';
+      
+      card.innerHTML = `
+        <img src="${poster}" class="calendario-poster" loading="lazy" onerror="this.src='https://via.placeholder.com/68x100?text=No+imagen'">
+        <div class="calendario-info">
+          <div class="calendario-titulo">${ep.show.name}</div>
+          <div class="calendario-episodio">${ep.name || episodioTexto}</div>
+          <div class="calendario-canal">📺 <strong>${canal}</strong></div>
+          <div class="calendario-hora">⏰ ${hora}</div>
+          <span class="calendario-pais">${getNombrePais(paisCodigo)}</span>
+        </div>
+      `;
+      
+      grupo.appendChild(card);
+    });
+    
+    container.appendChild(grupo);
+  });
+}
+
+// Abrir modal con datos de TVMaze
+async function abrirModalTVMaze(show) {
+  try {
+    // Obtener más detalles del show
+    const url = `https://api.tvmaze.com/shows/${show.id}?embed=episodes`;
+    const respuesta = await fetch(url);
+    const datos = await respuesta.json();
+    
+    // Crear un objeto compatible con nuestro modal
+    const item = {
+      id: datos.id,
+      title: datos.name,
+      name: datos.name,
+      overview: datos.summary?.replace(/<[^>]*>/g, '') || 'Sin descripción disponible',
+      poster_path: datos.image?.original ? datos.image.original.split('/').pop() : null,
+      vote_average: datos.rating?.average || 0,
+      first_air_date: datos.premiered || '',
+      platforms: [] // TVMaze no tiene plataformas de streaming
+    };
+    
+    // Obtener plataformas de TMDB si es posible (opcional)
+    try {
+      const tmdbRes = await fetch(`${BASEURL}search/tv?api_key=${APIKEY}&query=${encodeURIComponent(datos.name)}&page=1`);
+      const tmdbData = await tmdbRes.json();
+      if (tmdbData.results && tmdbData.results.length > 0) {
+        const tmdbId = tmdbData.results[0].id;
+        const platRes = await fetch(`${BASEURL}tv/${tmdbId}/watch/providers?api_key=${APIKEY}`);
+        const platData = await platRes.json();
+        item.plataformas = (platData.results?.ES?.flatrate || []).map(p => ({
+          ...p,
+          logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
+        }));
+      }
+    } catch {
+      item.plataformas = [];
+    }
+    
+    abrirModal(item);
+    
+  } catch (error) {
+    console.error('Error cargando detalles:', error);
+    mostrarNotificacion('Error al cargar los detalles', 'error');
+  }
+}
+
+// Inicializar calendario cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+  // ... tu código existente ...
+  
+  // Inicializar calendario
+  inicializarCalendario();
+});
