@@ -108,6 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('vistos', JSON.stringify([]));
   }
   
+  // Inicializar puntuaciones si no existen
+  if (!localStorage.getItem('puntuaciones')) {
+    localStorage.setItem('puntuaciones', JSON.stringify({}));
+  }
+  
   if (perfilData) {
     cargarPerfilCompartido(perfilData);
     mostrarSeccion('perfil');
@@ -754,7 +759,7 @@ async function cargarTemporadas(serieId) {
 }
 
 // ============================================
-// PUNTUACIÓN CON ESTRELLAS (CORREGIDO)
+// PUNTUACIÓN CON ESTRELLAS
 // ============================================
 function dibujarEstrellas(item) {
   const container = document.getElementById('estrellasSerie');
@@ -796,7 +801,7 @@ function puntuarItem(item, puntuacion) {
 }
 
 // ============================================
-// MARCAR COMO VISTO (NUEVA FUNCIÓN)
+// MARCAR COMO VISTO
 // ============================================
 function marcarComoVisto() {
   if (!itemActual || perfilCompartido) return;
@@ -1501,12 +1506,13 @@ async function verTrailer() {
 }
 
 // ============================================
-// AGENDA
+// AGENDA - CORREGIDA (FECHAS SIN DESFASE)
 // ============================================
 function aplicarFiltrosAgenda() {
   filtrosAgenda.fecha = document.getElementById('filtroFechaAgenda').value;
   filtrosAgenda.plataforma = document.getElementById('filtroPlataformaAgenda').value;
   
+  // Limpiar caché
   Object.keys(localStorage).forEach(key => {
     if (key.startsWith('agenda_tmdb_')) {
       localStorage.removeItem(key);
@@ -1519,31 +1525,38 @@ function aplicarFiltrosAgenda() {
 }
 
 function getRangoAgenda() {
+  // Usar fecha actual a las 12:00 para evitar problemas de zona horaria
   const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  hoy.setHours(12, 0, 0, 0); // MEDIODÍA para evitar problemas de zona
   
-  const fechaInicio = hoy;
   let dias = 7;
-  
   if (filtrosAgenda.fecha === 'week') dias = 7;
   else if (filtrosAgenda.fecha === 'month') dias = 30;
   else if (filtrosAgenda.fecha === 'all') dias = 45;
   
-  return { hoy: fechaInicio, dias };
+  console.log('Fecha inicio (hoy):', hoy.toISOString().split('T')[0]);
+  
+  return { hoy, dias };
 }
 
-function getDateISO(date = new Date()) {
-  return date.toISOString().split('T')[0];
+function getDateISO(date) {
+  if (!date) return '';
+  // Asegurar que la fecha está a las 12:00
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString().split('T')[0];
 }
 
 function sumarDias(fecha, dias) {
   const d = new Date(fecha);
   d.setDate(d.getDate() + dias);
+  d.setHours(12, 0, 0, 0); // Mantener las 12:00
   return d;
 }
 
 function parseSafeDate(fechaStr) {
   if (!fechaStr) return null;
+  // Crear fecha a las 12:00 para comparaciones consistentes
   const d = new Date(fechaStr + 'T12:00:00');
   return isNaN(d) ? null : d;
 }
@@ -1596,6 +1609,7 @@ async function obtenerEpisodiosSemana(serieId, fechaInicio, fechaFin) {
         
         (dt.episodes || []).forEach(ep => {
           const f = ep.air_date || '';
+          // Comparar fechas como strings YYYY-MM-DD
           if (f && f >= fechaInicio && f <= fechaFin) {
             episodios.push({
               fecha: f,
@@ -1645,6 +1659,9 @@ async function cargarAgenda(reset = false) {
     const { hoy, dias } = getRangoAgenda();
     const fechaInicio = getDateISO(hoy);
     const fechaFin = getDateISO(sumarDias(hoy, dias));
+    
+    console.log('Buscando episodios desde:', fechaInicio, 'hasta:', fechaFin);
+    
     const providerIds = AGENDA_PROVIDERS[filtrosAgenda.plataforma] || AGENDA_PROVIDERS.all;
     
     const series = await obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin);
@@ -1697,6 +1714,9 @@ async function cargarAgenda(reset = false) {
     todosLosItemsAgenda = items.sort((a,b) => a.fecha.localeCompare(b.fecha));
     localStorage.setItem(cacheKey, JSON.stringify({ time: Date.now(), data: todosLosItemsAgenda }));
     
+    console.log(`Encontrados ${todosLosItemsAgenda.length} episodios`);
+    console.log('Fechas:', todosLosItemsAgenda.map(i => i.fecha).filter((v,i,a) => a.indexOf(v)===i).sort());
+    
     ocultarLoader('agendaContainer');
     agendaItemsVisibles = 0;
     renderAgendaLote(true);
@@ -1735,10 +1755,17 @@ function renderAgendaLote(reset = false) {
   container.innerHTML = '';
   stats.innerHTML = `${todosLosItemsAgenda.length} episodios encontrados`;
   
+  // Obtener fecha actual a las 12:00 para comparar
   const hoy = new Date();
-  hoy.setHours(0,0,0,0);
+  hoy.setHours(12, 0, 0, 0);
+  const hoyStr = getDateISO(hoy);
+  
   const manana = new Date(hoy);
   manana.setDate(manana.getDate() + 1);
+  const mananaStr = getDateISO(manana);
+  
+  console.log('Hoy (para comparar):', hoyStr);
+  console.log('Mañana:', mananaStr);
   
   Object.keys(agrupado).sort().forEach(fecha => {
     const lista = agrupado[fecha];
@@ -1746,9 +1773,15 @@ function renderAgendaLote(reset = false) {
     let etiqueta = fecha;
     
     if (fechaObj) {
+      // Formato: "10 de Marzo"
       etiqueta = `${fechaObj.getDate()} de ${MESES[fechaObj.getMonth()]}`;
-      if (+fechaObj === +hoy) etiqueta = '🔴 HOY - ' + etiqueta;
-      else if (+fechaObj === +manana) etiqueta = '🔵 MAÑANA - ' + etiqueta;
+      
+      // Comparar como strings YYYY-MM-DD para evitar problemas de zona horaria
+      if (fecha === hoyStr) {
+        etiqueta = '🔴 HOY - ' + etiqueta;
+      } else if (fecha === mananaStr) {
+        etiqueta = '🔵 MAÑANA - ' + etiqueta;
+      }
     }
     
     const bloque = document.createElement('div');
