@@ -1,8 +1,8 @@
 // ============================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN - VERSIÓN SEGURA CON PROXY
 // ============================================
-const APIKEY = 'bc2f8428b1238d724f9003cbf430ccee';
-const BASEURL = 'https://api.themoviedb.org/3/';
+// LA API KEY YA NO ESTÁ EN EL FRONTEND
+const BASEURL = '/api/tmdb-proxy'; // Ahora apunta a nuestro proxy
 
 // ============================================
 // VARIABLES GLOBALES
@@ -34,6 +34,8 @@ let paratiPage = 1;
 let paratiTotalPages = 1;
 let paratiPrefActual = null;
 let paratiCargando = false;
+let paratiTabActual = 'tv';
+let prefTipoActual = 'ambos';
 
 // ============================================
 // CONSTANTES
@@ -127,7 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
     mostrarSeccion('tendencias');
   }
   
-  document.querySelector('.close').onclick = cerrarModal;
+  const closeBtn = document.querySelector('.close');
+  if (closeBtn) closeBtn.onclick = cerrarModal;
   
   actualizarDisplayAlias();
   actualizarStatsPerfil();
@@ -190,7 +193,8 @@ function cargarPerfilCompartido(data) {
     
     document.getElementById('avatarEmojiSelector').style.display = 'none';
     document.querySelector('.avatar-actions').style.display = 'none';
-    document.querySelector('.btn-compartir').disabled = true;
+    const btnCompartir = document.querySelector('.btn-compartir');
+    if (btnCompartir) btnCompartir.disabled = true;
     
     mostrarNotificacion('👀 Estás viendo un perfil compartido', 'info');
     
@@ -243,11 +247,15 @@ async function cargarDetallesItemsCompartidos(lista) {
   for (let i = 0; i < lista.items.length; i++) {
     const item = lista.items[i];
     try {
-      let res = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
+      // Intentar como serie primero
+      let url = `${BASEURL}?endpoint=tv&id=${item.id}`;
+      let res = await fetch(url);
       let data = await res.json();
       
-      if (data.success === false) {
-        res = await fetch(`${BASEURL}movie/${item.id}?api_key=${APIKEY}&language=es-ES`);
+      // Si no funciona, intentar como película
+      if (data.success === false || !data.id) {
+        url = `${BASEURL}?endpoint=movie&id=${item.id}`;
+        res = await fetch(url);
         data = await res.json();
       }
       
@@ -264,8 +272,10 @@ async function cargarDetallesItemsCompartidos(lista) {
       }
       
       const tipo = data.title ? 'movie' : 'tv';
-      const platRes = await fetch(`${BASEURL}${tipo}/${item.id}/watch/providers?api_key=${APIKEY}`);
+      const platUrl = `${BASEURL}?endpoint=watch/providers&tipo=${tipo}&id=${item.id}`;
+      const platRes = await fetch(platUrl);
       const platData = await platRes.json();
+      
       item.plataformas = (platData.results?.ES?.flatrate || []).map(p => ({
         ...p,
         logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
@@ -365,7 +375,7 @@ function mostrarSeccion(id) {
 }
 
 // ============================================
-// PELÍCULAS
+// PELÍCULAS - ACTUALIZADO CON PROXY
 // ============================================
 function cambiarFiltroPeliculas(filtro) {
   if (perfilCompartido) return;
@@ -384,24 +394,19 @@ async function cargarPeliculas(reset = false) {
   
   mostrarLoader('peliculasContainer');
   
-  let url;
+  let tipo;
   switch(filtroPeliculas) {
-    case 'latest':
-      url = `${BASEURL}movie/now_playing?api_key=${APIKEY}&language=es-ES&page=${peliculasPage}`;
-      break;
-    case 'popular':
-      url = `${BASEURL}movie/popular?api_key=${APIKEY}&language=es-ES&page=${peliculasPage}`;
-      break;
-    case 'top':
-      url = `${BASEURL}movie/top_rated?api_key=${APIKEY}&language=es-ES&page=${peliculasPage}`;
-      break;
-    default:
-      url = `${BASEURL}movie/now_playing?api_key=${APIKEY}&language=es-ES&page=${peliculasPage}`;
+    case 'latest': tipo = 'now_playing'; break;
+    case 'popular': tipo = 'popular'; break;
+    case 'top': tipo = 'top_rated'; break;
+    default: tipo = 'now_playing';
   }
   
   try {
+    const url = `${BASEURL}?endpoint=movie&tipo=${tipo}&page=${peliculasPage}`;
     const res = await fetch(url);
     const data = await res.json();
+    
     const items = await Promise.all((data.results || []).map(i => enriquecerConPlataformas(i, 'movie')));
     
     ocultarLoader('peliculasContainer');
@@ -420,7 +425,7 @@ async function cargarPeliculas(reset = false) {
 }
 
 // ============================================
-// SERIES
+// SERIES - ACTUALIZADO CON PROXY
 // ============================================
 function cambiarFiltroSeries(filtro) {
   if (perfilCompartido) return;
@@ -439,28 +444,21 @@ async function cargarSeries(reset = false) {
   
   mostrarLoader('seriesContainer');
   
-  let url;
+  let tipo;
   let maxPages = 10;
   
   switch(filtroSeries) {
-    case 'latest':
-      url = `${BASEURL}tv/on_the_air?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
-      maxPages = 1;
-      break;
-    case 'popular':
-      url = `${BASEURL}tv/popular?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
-      break;
-    case 'top':
-      url = `${BASEURL}tv/top_rated?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
-      break;
-    default:
-      url = `${BASEURL}tv/on_the_air?api_key=${APIKEY}&language=es-ES&page=${seriesPage}`;
-      maxPages = 1;
+    case 'latest': tipo = 'on_the_air'; maxPages = 1; break;
+    case 'popular': tipo = 'popular'; break;
+    case 'top': tipo = 'top_rated'; break;
+    default: tipo = 'on_the_air'; maxPages = 1;
   }
   
   try {
+    const url = `${BASEURL}?endpoint=tv&tipo=${tipo}&page=${seriesPage}`;
     const res = await fetch(url);
     const data = await res.json();
+    
     const items = await Promise.all((data.results || []).map(i => enriquecerConPlataformas(i, 'tv')));
     
     ocultarLoader('seriesContainer');
@@ -481,7 +479,7 @@ async function cargarSeries(reset = false) {
 }
 
 // ============================================
-// TENDENCIAS
+// TENDENCIAS - ACTUALIZADO CON PROXY
 // ============================================
 function cambiarTipoTendencias(tipo) {
   if (perfilCompartido) return;
@@ -500,13 +498,11 @@ async function cargarTendencias(reset = false) {
   
   mostrarLoader('tendenciasContainer');
   
-  const endpoint = tendenciasTipo === 'tv' 
-    ? `trending/tv/week?api_key=${APIKEY}&language=es-ES&page=${tendenciasPage}`
-    : `trending/movie/week?api_key=${APIKEY}&language=es-ES&page=${tendenciasPage}`;
-  
   try {
-    const res = await fetch(`${BASEURL}${endpoint}`);
+    const url = `${BASEURL}?endpoint=trending&tipo=${tendenciasTipo}&page=${tendenciasPage}`;
+    const res = await fetch(url);
     const data = await res.json();
+    
     const items = await Promise.all((data.results || []).map(i => 
       enriquecerConPlataformas(i, i.title ? 'movie' : 'tv')
     ));
@@ -527,12 +523,14 @@ async function cargarTendencias(reset = false) {
 }
 
 // ============================================
-// ENRIQUECER CON PLATAFORMAS
+// ENRIQUECER CON PLATAFORMAS - ACTUALIZADO CON PROXY
 // ============================================
 async function enriquecerConPlataformas(item, tipo) {
   try {
-    const res = await fetch(`${BASEURL}${tipo}/${item.id}/watch/providers?api_key=${APIKEY}`);
+    const url = `${BASEURL}?endpoint=watch/providers&tipo=${tipo}&id=${item.id}`;
+    const res = await fetch(url);
     const data = await res.json();
+    
     item.plataformas = (data.results?.ES?.flatrate || []).map(p => ({
       ...p,
       provider_name: p.provider_name || 'Streaming',
@@ -540,8 +538,10 @@ async function enriquecerConPlataformas(item, tipo) {
     }));
     
     if (tipo === 'tv') {
-      const detallesRes = await fetch(`${BASEURL}tv/${item.id}?api_key=${APIKEY}&language=es-ES`);
+      const detallesUrl = `${BASEURL}?endpoint=tv&id=${item.id}`;
+      const detallesRes = await fetch(detallesUrl);
       const detalles = await detallesRes.json();
+      
       item.next_episode_to_air = detalles.next_episode_to_air;
       item.last_episode_to_air = detalles.last_episode_to_air;
       item.number_of_seasons = detalles.number_of_seasons;
@@ -561,8 +561,8 @@ function crearTarjetaHTML(item) {
   const titulo = item.title || item.name || 'Sin título';
   const fecha = item.release_date || item.first_air_date || '';
   const poster = item.poster_path 
-    ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-    : 'https://via.placeholder.com/300x450?text=Sin+imagen';
+    ? `https://image.tmdb.org/t/p/w200${item.poster_path}`
+    : 'https://via.placeholder.com/200x300?text=Sin+imagen';
   const nota = item.vote_average || 0;
   
   // Comprobar si está visto
@@ -729,29 +729,37 @@ function cerrarModal() {
   document.getElementById('temporadasContainer').innerHTML = '';
 }
 
+// ============================================
+// CARGAR TEMPORADAS - ACTUALIZADO CON PROXY
+// ============================================
 async function cargarTemporadas(serieId) {
   try {
-    const res = await fetch(`${BASEURL}tv/${serieId}?api_key=${APIKEY}&language=es-ES`);
+    const url = `${BASEURL}?endpoint=tv&id=${serieId}`;
+    const res = await fetch(url);
     const data = await res.json();
     
     if (data.seasons && data.seasons.length > 0) {
       const container = document.getElementById('temporadasContainer');
       container.innerHTML = '<h3>Temporadas:</h3>';
       
-      data.seasons.forEach(season => {
+      for (const season of data.seasons) {
         if (season.season_number > 0) {
+          const seasonUrl = `${BASEURL}?endpoint=season&id=${serieId}&tipo=${season.season_number}`;
+          const seasonRes = await fetch(seasonUrl);
+          const seasonData = await seasonRes.json();
+          
           const div = document.createElement('div');
           div.className = 'temporada';
           div.style.cssText = 'margin:10px 0; padding:10px; background:rgba(255,255,255,0.05); border-radius:8px;';
           div.innerHTML = `
             <h4>Temporada ${season.season_number}</h4>
-            <p>${season.name || ''}</p>
-            <p>Episodios: ${season.episode_count || 'N/A'}</p>
+            <p>${seasonData.name || ''}</p>
+            <p>Episodios: ${seasonData.episodes?.length || season.episode_count || 'N/A'}</p>
             <p>Fecha: ${season.air_date || 'N/A'}</p>
           `;
           container.appendChild(div);
         }
-      });
+      }
     }
   } catch (error) {
     console.error('Error cargando temporadas:', error);
@@ -765,11 +773,9 @@ function dibujarEstrellas(item) {
   const container = document.getElementById('estrellasSerie');
   container.innerHTML = '<h3>Tu puntuación:</h3>';
   
-  // Buscar puntuación en localStorage de puntuaciones (independiente de listas)
   let puntuaciones = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
   let puntuacionActual = puntuaciones[item.id] || 0;
   
-  // Crear estrellas
   for (let i = 1; i <= 5; i++) {
     const star = document.createElement('span');
     star.className = 'star' + (i <= puntuacionActual ? ' active' : '');
@@ -780,12 +786,10 @@ function dibujarEstrellas(item) {
 }
 
 function puntuarItem(item, puntuacion) {
-  // Guardar puntuación en localStorage independiente
   let puntuaciones = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
   puntuaciones[item.id] = puntuacion;
   localStorage.setItem('puntuaciones', JSON.stringify(puntuaciones));
   
-  // También actualizar en listas si existe (por compatibilidad)
   const listas = getListas();
   listas.forEach(lista => {
     const idx = lista.items.findIndex(i => i.id == item.id);
@@ -810,22 +814,18 @@ function marcarComoVisto() {
   const index = vistos.indexOf(itemActual.id);
   
   if (index === -1) {
-    // No está visto → marcar como visto
     vistos.push(itemActual.id);
     localStorage.setItem('vistos', JSON.stringify(vistos));
     mostrarNotificacion('✅ Marcado como visto', 'visto');
     
-    // Actualizar botón
     const boton = document.getElementById('marcarVisto');
     boton.textContent = '✅ Quitar visto';
     boton.style.background = '#ff9800';
   } else {
-    // Está visto → quitar visto
     vistos.splice(index, 1);
     localStorage.setItem('vistos', JSON.stringify(vistos));
     mostrarNotificacion('Quitado de vistos', 'info');
     
-    // Actualizar botón
     const boton = document.getElementById('marcarVisto');
     boton.textContent = '✅ Marcar visto';
     boton.style.background = '#4CAF50';
@@ -947,6 +947,8 @@ function mostrarSelectorListas() {
   
   const listas = getListas();
   const selector = document.getElementById('listasSelector');
+  if (!selector) return;
+  
   selector.innerHTML = '';
   
   if (listas.length === 0) {
@@ -1093,12 +1095,11 @@ function renderListas() {
         card.className = 'card';
         
         const poster = item.poster_path 
-          ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-          : 'https://via.placeholder.com/300x450?text=Sin+imagen';
+          ? `https://image.tmdb.org/t/p/w200${item.poster_path}`
+          : 'https://via.placeholder.com/200x300?text=Sin+imagen';
         
         const fecha = item.release_date || item.first_air_date || '';
         
-        // Comprobar si está visto
         const vistos = JSON.parse(localStorage.getItem('vistos') || '[]');
         const estaVisto = vistos.includes(item.id);
         const vistoBadge = estaVisto ? '<div class="visto-badge">✅ Visto</div>' : '';
@@ -1421,7 +1422,7 @@ function comprobarRecordatorios() {
 }
 
 // ============================================
-// BUSCAR
+// BUSCAR - ACTUALIZADO CON PROXY
 // ============================================
 async function buscar(mas = false) {
   const input = document.getElementById('searchInput');
@@ -1444,10 +1445,7 @@ async function buscar(mas = false) {
   mostrarLoader('contenedorBuscar');
   
   try {
-    const url = tipo === 'multi'
-      ? `${BASEURL}search/multi?api_key=${APIKEY}&language=es-ES&query=${encodeURIComponent(query)}&page=${busquedaPage}`
-      : `${BASEURL}search/${tipo}?api_key=${APIKEY}&language=es-ES&query=${encodeURIComponent(query)}&page=${busquedaPage}`;
-    
+    const url = `${BASEURL}?endpoint=search&tipo=${tipo}&query=${encodeURIComponent(query)}&page=${busquedaPage}`;
     const res = await fetch(url);
     const data = await res.json();
     
@@ -1476,7 +1474,7 @@ async function buscar(mas = false) {
 }
 
 // ============================================
-// TRÁILER
+// TRÁILER - ACTUALIZADO CON PROXY
 // ============================================
 async function verTrailer() {
   if (!itemActual) return;
@@ -1485,7 +1483,8 @@ async function verTrailer() {
   const tipo = itemActual.title ? 'movie' : 'tv';
   
   try {
-    const res = await fetch(`${BASEURL}${tipo}/${id}/videos?api_key=${APIKEY}&language=es-ES`);
+    const url = `${BASEURL}?endpoint=videos&tipo=${tipo}&id=${id}`;
+    const res = await fetch(url);
     const data = await res.json();
     
     const trailer = (data.results || []).find(v => v.type === 'Trailer' && v.site === 'YouTube');
@@ -1506,13 +1505,12 @@ async function verTrailer() {
 }
 
 // ============================================
-// AGENDA - CORREGIDA (FECHAS SIN DESFASE)
+// AGENDA - ACTUALIZADO CON PROXY
 // ============================================
 function aplicarFiltrosAgenda() {
   filtrosAgenda.fecha = document.getElementById('filtroFechaAgenda').value;
   filtrosAgenda.plataforma = document.getElementById('filtroPlataformaAgenda').value;
   
-  // Limpiar caché
   Object.keys(localStorage).forEach(key => {
     if (key.startsWith('agenda_tmdb_')) {
       localStorage.removeItem(key);
@@ -1525,23 +1523,19 @@ function aplicarFiltrosAgenda() {
 }
 
 function getRangoAgenda() {
-  // Usar fecha actual a las 12:00 para evitar problemas de zona horaria
   const hoy = new Date();
-  hoy.setHours(12, 0, 0, 0); // MEDIODÍA para evitar problemas de zona
+  hoy.setHours(12, 0, 0, 0);
   
   let dias = 7;
   if (filtrosAgenda.fecha === 'week') dias = 7;
   else if (filtrosAgenda.fecha === 'month') dias = 30;
   else if (filtrosAgenda.fecha === 'all') dias = 45;
   
-  console.log('Fecha inicio (hoy):', hoy.toISOString().split('T')[0]);
-  
   return { hoy, dias };
 }
 
 function getDateISO(date) {
   if (!date) return '';
-  // Asegurar que la fecha está a las 12:00
   const d = new Date(date);
   d.setHours(12, 0, 0, 0);
   return d.toISOString().split('T')[0];
@@ -1550,13 +1544,12 @@ function getDateISO(date) {
 function sumarDias(fecha, dias) {
   const d = new Date(fecha);
   d.setDate(d.getDate() + dias);
-  d.setHours(12, 0, 0, 0); // Mantener las 12:00
+  d.setHours(12, 0, 0, 0);
   return d;
 }
 
 function parseSafeDate(fechaStr) {
   if (!fechaStr) return null;
-  // Crear fecha a las 12:00 para comparaciones consistentes
   const d = new Date(fechaStr + 'T12:00:00');
   return isNaN(d) ? null : d;
 }
@@ -1568,9 +1561,8 @@ async function obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin) {
   await Promise.all(providerIds.map(async (pid) => {
     for (let page = 1; page <= 2; page++) {
       try {
-        const url = `${BASEURL}discover/tv?api_key=${APIKEY}&language=es-ES&watch_region=ES`
-          + `&with_watch_providers=${pid}&air_date.gte=${fechaInicio}&air_date.lte=${fechaFin}`
-          + `&sort_by=first_air_date.asc&page=${page}`;
+        const providerIdsStr = providerIds.join('|');
+        const url = `${BASEURL}?endpoint=discover&tipo=tv&providerIds=${providerIdsStr}&fechaInicio=${fechaInicio}&fechaFin=${fechaFin}&page=${page}`;
         const res = await fetch(url);
         const data = await res.json();
         const results = data.results || [];
@@ -1595,21 +1587,22 @@ async function obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin) {
 
 async function obtenerEpisodiosSemana(serieId, fechaInicio, fechaFin) {
   try {
-    const res = await fetch(`${BASEURL}tv/${serieId}?api_key=${APIKEY}&language=es-ES`);
-    const detalle = await res.json();
-    const episodios = [];
+    const serieUrl = `${BASEURL}?endpoint=tv&id=${serieId}`;
+    const serieRes = await fetch(serieUrl);
+    const detalle = await serieRes.json();
     
+    const episodios = [];
     const seasons = (detalle.seasons || []).filter(s => s.season_number > 0 && s.air_date);
     const ultimasSeasons = seasons.slice(-3);
     
     await Promise.all(ultimasSeasons.map(async (t) => {
       try {
-        const r = await fetch(`${BASEURL}tv/${serieId}/season/${t.season_number}?api_key=${APIKEY}&language=es-ES`);
-        const dt = await r.json();
+        const seasonUrl = `${BASEURL}?endpoint=season&id=${serieId}&tipo=${t.season_number}`;
+        const seasonRes = await fetch(seasonUrl);
+        const dt = await seasonRes.json();
         
         (dt.episodes || []).forEach(ep => {
           const f = ep.air_date || '';
-          // Comparar fechas como strings YYYY-MM-DD
           if (f && f >= fechaInicio && f <= fechaFin) {
             episodios.push({
               fecha: f,
@@ -1660,8 +1653,6 @@ async function cargarAgenda(reset = false) {
     const fechaInicio = getDateISO(hoy);
     const fechaFin = getDateISO(sumarDias(hoy, dias));
     
-    console.log('Buscando episodios desde:', fechaInicio, 'hasta:', fechaFin);
-    
     const providerIds = AGENDA_PROVIDERS[filtrosAgenda.plataforma] || AGENDA_PROVIDERS.all;
     
     const series = await obtenerSeriesTMDB(providerIds, fechaInicio, fechaFin);
@@ -1671,7 +1662,7 @@ async function cargarAgenda(reset = false) {
       const episodios = await obtenerEpisodiosSemana(serie.id, fechaInicio, fechaFin);
       if (!episodios.length) return;
       
-      const poster = serie.poster_path ? `https://image.tmdb.org/t/p/w300${serie.poster_path}` : null;
+      const poster = serie.poster_path ? `https://image.tmdb.org/t/p/w200${serie.poster_path}` : null;
       const providerName = AGENDA_PROVIDER_NAMES[serie._provider_id] || 'Streaming';
       
       const porFecha = {};
@@ -1714,9 +1705,6 @@ async function cargarAgenda(reset = false) {
     todosLosItemsAgenda = items.sort((a,b) => a.fecha.localeCompare(b.fecha));
     localStorage.setItem(cacheKey, JSON.stringify({ time: Date.now(), data: todosLosItemsAgenda }));
     
-    console.log(`Encontrados ${todosLosItemsAgenda.length} episodios`);
-    console.log('Fechas:', todosLosItemsAgenda.map(i => i.fecha).filter((v,i,a) => a.indexOf(v)===i).sort());
-    
     ocultarLoader('agendaContainer');
     agendaItemsVisibles = 0;
     renderAgendaLote(true);
@@ -1755,7 +1743,6 @@ function renderAgendaLote(reset = false) {
   container.innerHTML = '';
   stats.innerHTML = `${todosLosItemsAgenda.length} episodios encontrados`;
   
-  // Obtener fecha actual a las 12:00 para comparar
   const hoy = new Date();
   hoy.setHours(12, 0, 0, 0);
   const hoyStr = getDateISO(hoy);
@@ -1764,19 +1751,14 @@ function renderAgendaLote(reset = false) {
   manana.setDate(manana.getDate() + 1);
   const mananaStr = getDateISO(manana);
   
-  console.log('Hoy (para comparar):', hoyStr);
-  console.log('Mañana:', mananaStr);
-  
   Object.keys(agrupado).sort().forEach(fecha => {
     const lista = agrupado[fecha];
     const fechaObj = parseSafeDate(fecha);
     let etiqueta = fecha;
     
     if (fechaObj) {
-      // Formato: "10 de Marzo"
       etiqueta = `${fechaObj.getDate()} de ${MESES[fechaObj.getMonth()]}`;
       
-      // Comparar como strings YYYY-MM-DD para evitar problemas de zona horaria
       if (fecha === hoyStr) {
         etiqueta = '🔴 HOY - ' + etiqueta;
       } else if (fecha === mananaStr) {
@@ -1836,8 +1818,10 @@ function cargarMasAgenda() {
 
 async function abrirModalAgenda(tmdbId) {
   try {
-    const res = await fetch(`${BASEURL}tv/${tmdbId}?api_key=${APIKEY}&language=es-ES`);
+    const url = `${BASEURL}?endpoint=tv&id=${tmdbId}`;
+    const res = await fetch(url);
     const show = await res.json();
+    
     const item = await enriquecerConPlataformas({
       id: show.id,
       title: show.name,
@@ -1854,7 +1838,7 @@ async function abrirModalAgenda(tmdbId) {
 }
 
 // ============================================
-// PARA TI - RECOMENDACIONES CON SCROLL INFINITO
+// PARA TI - RECOMENDACIONES CON PROXY
 // ============================================
 function cargarPreferenciasOnboarding() {
   const grid = document.getElementById('generosGrid');
@@ -1982,20 +1966,10 @@ async function cargarRecomendaciones(pref, reset = true) {
   
   try {
     const generosStr = pref.generos.join('|');
-    let url = `${BASEURL}discover/${tipoActual}?api_key=${APIKEY}&language=es-ES&watch_region=ES&with_genres=${generosStr}&sort_by=popularity.desc&vote_count.gte=10&page=${paratiPage}`;
+    let url = `${BASEURL}?endpoint=discover&tipo=${tipoActual}&with_genres=${generosStr}&page=${paratiPage}`;
     
     if (pref.plataformas && pref.plataformas.length > 0) {
       url += `&with_watch_providers=${pref.plataformas.join('|')}`;
-    }
-    
-    if (tipoActual === 'tv') {
-      url += '&include_null_first_air_dates=false';
-      url += '&first_air_date.lte=' + new Date().toISOString().split('T')[0];
-    }
-    
-    if (tipoActual === 'movie') {
-      url += '&include_video=false';
-      url += '&primary_release_date.lte=' + new Date().toISOString().split('T')[0];
     }
     
     const res = await fetch(url);
@@ -2234,11 +2208,10 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
     toast.remove();
   }, 3000);
 }
+
 // ============================================
 // CALENDARIO MUNDIAL CON TVMAZE
 // ============================================
-
-// Países disponibles con sus nombres
 const PAISES = {
   'US': 'Estados Unidos',
   'GB': 'Reino Unido',
@@ -2258,7 +2231,6 @@ const PAISES = {
   'PT': 'Portugal'
 };
 
-// Inicializar calendario con fecha de hoy
 function inicializarCalendario() {
   const fechaInput = document.getElementById('fechaCalendario');
   if (fechaInput) {
@@ -2270,11 +2242,9 @@ function inicializarCalendario() {
   }
 }
 
-// Formatear hora (de 12:00 a 12:00 PM)
 function formatearHora(horaStr) {
   if (!horaStr) return 'Hora no disponible';
   
-  // TVMaze devuelve la hora en formato HH:MM
   const [horas, minutos] = horaStr.split(':');
   const h = parseInt(horas);
   
@@ -2286,12 +2256,10 @@ function formatearHora(horaStr) {
   return `${hora12}:${minutos} ${ampm}`;
 }
 
-// Obtener nombre del país por código
 function getNombrePais(codigo) {
   return PAISES[codigo] || codigo;
 }
 
-// Cargar calendario por país y fecha
 async function cargarCalendarioPorPais() {
   const pais = document.getElementById('paisCalendario').value;
   const fecha = document.getElementById('fechaCalendario').value;
@@ -2329,7 +2297,6 @@ async function cargarCalendarioPorPais() {
   }
 }
 
-// Cargar calendario de hoy
 function cargarCalendarioHoy() {
   const hoy = new Date();
   const año = hoy.getFullYear();
@@ -2340,7 +2307,6 @@ function cargarCalendarioHoy() {
   cargarCalendarioPorPais();
 }
 
-// Cargar calendario mundial completo (todos los episodios futuros)
 async function cargarCalendarioMundial() {
   mostrarLoader('calendarioContainer');
   document.getElementById('calendarioStats').innerHTML = 'Cargando calendario mundial... (puede tardar unos segundos)';
@@ -2358,12 +2324,10 @@ async function cargarCalendarioMundial() {
       return;
     }
     
-    // Agrupar por fecha para mostrar
-    const episodios = datos.slice(0, 100); // Mostrar solo primeros 100 para no saturar
+    const episodios = datos.slice(0, 100);
     
     document.getElementById('calendarioStats').innerHTML = `Mostrando 100 de ${datos.length} episodios futuros (calendario mundial)`;
     
-    // Ordenar por fecha
     episodios.sort((a, b) => new Date(a.airdate) - new Date(b.airdate));
     
     renderizarCalendarioMundial(episodios);
@@ -2377,13 +2341,11 @@ async function cargarCalendarioMundial() {
   }
 }
 
-// Renderizar calendario por país
 function renderizarCalendario(episodios, pais) {
   const container = document.getElementById('calendarioContainer');
   container.innerHTML = '';
   
   episodios.sort((a, b) => {
-    // Ordenar por hora
     return (a.airtime || '00:00').localeCompare(b.airtime || '00:00');
   });
   
@@ -2416,12 +2378,10 @@ function renderizarCalendario(episodios, pais) {
   });
 }
 
-// Renderizar calendario mundial (agrupado por fecha)
 function renderizarCalendarioMundial(episodios) {
   const container = document.getElementById('calendarioContainer');
   container.innerHTML = '';
   
-  // Agrupar por fecha
   const porFecha = {};
   episodios.forEach(ep => {
     if (!ep.show) return;
@@ -2430,7 +2390,6 @@ function renderizarCalendarioMundial(episodios) {
     porFecha[fecha].push(ep);
   });
   
-  // Mostrar agrupado
   Object.keys(porFecha).sort().forEach(fecha => {
     const lista = porFecha[fecha];
     
@@ -2481,15 +2440,12 @@ function renderizarCalendarioMundial(episodios) {
   });
 }
 
-// Abrir modal con datos de TVMaze
 async function abrirModalTVMaze(show) {
   try {
-    // Obtener más detalles del show
     const url = `https://api.tvmaze.com/shows/${show.id}?embed=episodes`;
     const respuesta = await fetch(url);
     const datos = await respuesta.json();
     
-    // Crear un objeto compatible con nuestro modal
     const item = {
       id: datos.id,
       title: datos.name,
@@ -2498,17 +2454,20 @@ async function abrirModalTVMaze(show) {
       poster_path: datos.image?.original ? datos.image.original.split('/').pop() : null,
       vote_average: datos.rating?.average || 0,
       first_air_date: datos.premiered || '',
-      platforms: [] // TVMaze no tiene plataformas de streaming
+      platforms: []
     };
     
-    // Obtener plataformas de TMDB si es posible (opcional)
     try {
-      const tmdbRes = await fetch(`${BASEURL}search/tv?api_key=${APIKEY}&query=${encodeURIComponent(datos.name)}&page=1`);
+      const tmdbSearchUrl = `${BASEURL}?endpoint=search&tipo=tv&query=${encodeURIComponent(datos.name)}&page=1`;
+      const tmdbRes = await fetch(tmdbSearchUrl);
       const tmdbData = await tmdbRes.json();
+      
       if (tmdbData.results && tmdbData.results.length > 0) {
         const tmdbId = tmdbData.results[0].id;
-        const platRes = await fetch(`${BASEURL}tv/${tmdbId}/watch/providers?api_key=${APIKEY}`);
+        const platUrl = `${BASEURL}?endpoint=watch/providers&tipo=tv&id=${tmdbId}`;
+        const platRes = await fetch(platUrl);
         const platData = await platRes.json();
+        
         item.plataformas = (platData.results?.ES?.flatrate || []).map(p => ({
           ...p,
           logo_path: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null
@@ -2526,10 +2485,5 @@ async function abrirModalTVMaze(show) {
   }
 }
 
-// Inicializar calendario cuando se carga la página
-document.addEventListener('DOMContentLoaded', function() {
-  // ... tu código existente ...
-  
-  // Inicializar calendario
-  inicializarCalendario();
-});
+// Inicializar calendario
+inicializarCalendario();
