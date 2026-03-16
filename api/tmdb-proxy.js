@@ -4,7 +4,7 @@
 export default async function handler(req, res) {
   // Configurar CORS - solo permitir tu dominio
   const allowedOrigins = [
-    'https://seriestopia.vercel.app',
+    'https://seriesmazinger.vercel.app',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://127.0.0.1:3000',
