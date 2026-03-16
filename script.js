@@ -1196,13 +1196,13 @@ async function compartirLista(listaId) {
   };
   
   const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
-  const url = `https://seriestopia.vercel.app/?d=${compressed}`;
+  const url = `https://SeriesMazinger.vercel.app/?d=${compressed}`;
   
   if (navigator.share) {
     try {
       await navigator.share({
         title: `Mi lista: ${lista.nombre}`,
-        text: `Mira mi lista "${lista.nombre}" en SERIESTOPIA`,
+        text: `Mira mi lista "${lista.nombre}" en SeriesMazinger`,
         url: url
       });
       mostrarNotificacion('Compartido', 'success');
@@ -1227,13 +1227,13 @@ async function compartirPerfil() {
   };
   
   const compressed = btoa(encodeURIComponent(JSON.stringify(shareData)));
-  const url = `https://seriestopia.vercel.app/?p=${compressed}`;
+  const url = `https://SeriesMazinger.vercel.app/?p=${compressed}`;
   
   if (navigator.share) {
     try {
       await navigator.share({
         title: `Perfil de ${alias}`,
-        text: `Mira mi perfil en SERIESTOPIA`,
+        text: `Mira mi perfil en SeriesMazinger`,
         url: url
       });
       mostrarNotificacion('Compartido', 'success');
