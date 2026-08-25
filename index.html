@@ -248,6 +248,17 @@
               <button class="btn-perfil" id="btnEntrar" onclick="iniciarSesionUI()">Entrar</button>
               <button class="btn-perfil btn-secundario" id="btnCrearCuenta" onclick="registrarCuentaUI()">Crear cuenta</button>
             </div>
+            <button type="button" class="auth-link" onclick="olvidarContrasenaUI()">¿Olvidaste tu contraseña?</button>
+          </div>
+
+          <!-- PANEL NUEVA CONTRASEÑA (llega desde el email de recuperación) -->
+          <div id="authRecuperar" style="display:none">
+            <h3>🔑 Elige una nueva contraseña</h3>
+            <input type="password" id="recPass1" class="alias-input auth-input" placeholder="Nueva contraseña (mín. 6)" autocomplete="new-password">
+            <input type="password" id="recPass2" class="alias-input auth-input" placeholder="Repite la nueva contraseña" autocomplete="new-password">
+            <div class="auth-btns">
+              <button class="btn-perfil" onclick="guardarNuevaContrasenaUI()">Guardar contraseña</button>
+            </div>
           </div>
 
           <div id="authLogueado" style="display:none">

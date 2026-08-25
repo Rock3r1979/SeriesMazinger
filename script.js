@@ -2787,6 +2787,9 @@ function inicializarAuth() {
   _sb.auth.onAuthStateChange((evento, sesion) => {
     if (evento === 'SIGNED_IN' && sesion && sesion.user && (!_usuario || _usuario.id !== sesion.user.id)) {
       aplicarSesion(sesion.user);
+    } else if (evento === 'PASSWORD_RECOVERY') {
+      if (sesion && sesion.user) _usuario = sesion.user;
+      mostrarPanelRecuperacion();
     } else if (evento === 'SIGNED_OUT') {
       _usuario = null;
       refrescarUICuenta();
@@ -2851,6 +2854,48 @@ async function cerrarSesionUI() {
   _usuario = null;
   refrescarUICuenta();
   mostrarNotificacion('Sesión cerrada. Tus datos siguen en este dispositivo.', 'info');
+}
+
+// ---------- Recuperación de contraseña ----------
+function mostrarPanelRecuperacion() {
+  const panel = document.getElementById('authRecuperar');
+  if (!panel) return;
+  panel.style.display = 'block';
+  refrescarUICuenta();
+  mostrarSeccion('perfil');
+  mostrarNotificacion('🔑 Escribe tu nueva contraseña', 'info');
+}
+
+async function olvidarContrasenaUI() {
+  if (!_sb) return;
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email.includes('@')) {
+    return mostrarNotificacion('Escribe arriba tu email y vuelve a pulsar', 'error');
+  }
+  
+  const { error } = await _sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  
+  if (error) return mostrarNotificacion(error.message, 'error');
+  mostrarNotificacion('📧 Revisa tu correo: te hemos enviado el enlace', 'success');
+}
+
+async function guardarNuevaContrasenaUI() {
+  if (!_sb || !_usuario) return;
+  const p1 = document.getElementById('recPass1').value;
+  const p2 = document.getElementById('recPass2').value;
+  
+  if (p1.length < 6) return mostrarNotificacion('Mínimo 6 caracteres', 'error');
+  if (p1 !== p2) return mostrarNotificacion('Las contraseñas no coinciden', 'error');
+  
+  const { error } = await _sb.auth.updateUser({ password: p1 });
+  if (error) return mostrarNotificacion(error.message, 'error');
+  
+  document.getElementById('authRecuperar').style.display = 'none';
+  document.getElementById('recPass1').value = '';
+  document.getElementById('recPass2').value = '';
+  mostrarNotificacion('✅ Contraseña actualizada. ¡Todo listo!', 'success');
 }
 
 function refrescarUICuenta() {
