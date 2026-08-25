@@ -161,10 +161,21 @@
         </div>
 
         <div class="calendario-acciones">
-          <button class="btn-mundial" onclick="cargarCalendarioMundial()">
-            🌐 Ver Calendario Mundial Completo
-          </button>
-          <span class="mundial-nota">(Todos los episodios futuros conocidos)</span>
+          <div class="rango-fechas">
+            <div class="filtro-grupo">
+              <label for="fechaDesdeMundial">Desde:</label>
+              <input type="date" id="fechaDesdeMundial" class="calendario-date">
+            </div>
+            <div class="filtro-grupo">
+              <label for="fechaHastaMundial">Hasta:</label>
+              <input type="date" id="fechaHastaMundial" class="calendario-date">
+            </div>
+            <div class="filtro-grupo">
+              <label>&nbsp;</label>
+              <button class="btn-calendario" onclick="cargarCalendarioMundial()">📅 Buscar episodios</button>
+            </div>
+          </div>
+          <span class="mundial-nota">Elige un rango de fechas y busca episodios de todo el mundo</span>
         </div>
 
         <div id="calendarioStats" class="calendario-stats"></div>

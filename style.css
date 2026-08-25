@@ -29,6 +29,9 @@
   --info: #3498db;
   --visto: #2ecc71;
 
+  /* Controles nativos (selects, date pickers) en modo oscuro */
+  color-scheme: dark;
+
   /* Geometría */
   --r-sm: 10px;
   --r-md: 14px;
@@ -413,6 +416,14 @@ body { padding-bottom: 0; }
 }
 
 .sel:hover, .sel:focus { border-color: var(--primary); outline: none; }
+
+/* Opciones de los desplegables: fondo oscuro explícito para todos los navegadores */
+.sel option,
+.calendario-select option,
+select option {
+  background-color: var(--bg-card);
+  color: var(--text);
+}
 
 /* ============================================================
    TARJETAS
@@ -1445,6 +1456,15 @@ body { padding-bottom: 0; }
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 1.4rem;
+}
+
+.rango-fechas {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  width: 100%;
 }
 
 .btn-mundial {

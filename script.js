@@ -2397,13 +2397,19 @@ const PAISES = {
 };
 
 function inicializarCalendario() {
+  const hoy = new Date();
+  const aISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  
   const fechaInput = document.getElementById('fechaCalendario');
-  if (fechaInput) {
-    const hoy = new Date();
-    const año = hoy.getFullYear();
-    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoy.getDate()).padStart(2, '0');
-    fechaInput.value = `${año}-${mes}-${dia}`;
+  if (fechaInput) fechaInput.value = aISO(hoy);
+  
+  const desdeInput = document.getElementById('fechaDesdeMundial');
+  const hastaInput = document.getElementById('fechaHastaMundial');
+  if (desdeInput) desdeInput.value = aISO(hoy);
+  if (hastaInput) {
+    const en7 = new Date(hoy);
+    en7.setDate(en7.getDate() + 7);
+    hastaInput.value = aISO(en7);
   }
 }
 
@@ -2472,36 +2478,125 @@ function cargarCalendarioHoy() {
   cargarCalendarioPorPais();
 }
 
-async function cargarCalendarioMundial() {
+// Cache en memoria del schedule completo (es pesado, se pide una vez por sesión)
+let _scheduleFullCache = null;
+
+function normalizarSchedule(datos) {
+  if (!datos) return [];
+  if (Array.isArray(datos)) return datos;
+  // TVmaze a veces responde como mapa { showId: [episodios] }
+  const eps = [];
+  Object.values(datos).forEach(arr => {
+    if (Array.isArray(arr)) eps.push(...arr);
+  });
+  return eps;
+}
+
+function extraerShowDeEpisodio(ep) {
+  if (!ep) return null;
+  if (ep.show) return ep.show;
+  if (ep._embedded && ep._embedded.show) return ep._embedded.show;
+  return null;
+}
+
+function idShowDesdeLinks(ep) {
+  const href = ep && ep._links && ep._links.show && ep._links.show.href;
+  if (!href) return null;
+  const m = String(href).match(/shows\/(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+async function obtenerEpisodiosMundiales() {
+  if (_scheduleFullCache) return _scheduleFullCache;
+  
   mostrarLoader('calendarioContainer');
-  document.getElementById('calendarioStats').innerHTML = 'Cargando calendario mundial... (puede tardar unos segundos)';
+  
+  const respuesta = await fetch('https://api.tvmaze.com/schedule/full');
+  const datos = await respuesta.json();
+  
+  const episodios = normalizarSchedule(datos).filter(e => e && e.airdate);
+  
+  // Resolver los shows que no vienen incrustados en la respuesta
+  const porId = {};
+  episodios.forEach(e => {
+    if (!extraerShowDeEpisodio(e)) {
+      const id = idShowDesdeLinks(e);
+      if (id != null) {
+        if (!porId[id]) porId[id] = [];
+        porId[id].push(e);
+      }
+    }
+  });
+  
+  await Promise.all(Object.keys(porId).slice(0, 500).map(async idStr => {
+    try {
+      const r = await fetch(`https://api.tvmaze.com/shows/${idStr}`);
+      if (!r.ok) return;
+      const show = await r.json();
+      porId[idStr].forEach(e => { e.show = show; });
+    } catch {}
+  }));
+  
+  _scheduleFullCache = episodios;
+  ocultarLoader('calendarioContainer');
+  return episodios;
+}
+
+function fechaCortaMundial(d) {
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
+
+async function cargarCalendarioMundial() {
+  const container = document.getElementById('calendarioContainer');
+  const statsEl = document.getElementById('calendarioStats');
   
   try {
-    const url = 'https://api.tvmaze.com/schedule/full';
-    const respuesta = await fetch(url);
-    const datos = await respuesta.json();
+    statsEl.innerHTML = 'Cargando calendario mundial... (puede tardar unos segundos)';
     
-    ocultarLoader('calendarioContainer');
+    const todos = await obtenerEpisodiosMundiales();
     
-    if (!datos || datos.length === 0) {
-      document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">No hay episodios programados</p>';
-      document.getElementById('calendarioStats').innerHTML = '0 episodios encontrados';
+    // Rango de fechas seleccionado (por defecto: hoy → próximos 7 días)
+    const desdeVal = document.getElementById('fechaDesdeMundial')?.value;
+    const hastaVal = document.getElementById('fechaHastaMundial')?.value;
+    
+    let desde = desdeVal ? new Date(desdeVal + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+    let hasta;
+    if (hastaVal) {
+      hasta = new Date(hastaVal + 'T23:59:59');
+    } else {
+      hasta = new Date();
+      hasta.setHours(23, 59, 59);
+      hasta.setDate(hasta.getDate() + 7);
+    }
+    
+    if (hasta < desde) { const tmp = desde; desde = hasta; hasta = tmp; }
+    
+    const MAX = 300;
+    const filtrados = todos
+      .filter(e => extraerShowDeEpisodio(e))
+      .filter(e => {
+        const f = new Date(e.airdate + 'T12:00:00');
+        return f >= desde && f <= hasta;
+      })
+      .sort((a, b) => a.airdate.localeCompare(b.airdate));
+    
+    if (!filtrados.length) {
+      container.innerHTML = '<p class="sin-resultados">No hay episodios entre esas fechas</p>';
+      statsEl.innerHTML = `0 episodios del ${fechaCortaMundial(desde)} al ${fechaCortaMundial(hasta)}`;
       return;
     }
     
-    const episodios = datos.slice(0, 100);
+    statsEl.innerHTML =
+      `${filtrados.length} episodios del ${fechaCortaMundial(desde)} al ${fechaCortaMundial(hasta)}` +
+      (filtrados.length > MAX ? ` · mostrando ${MAX}` : '');
     
-    document.getElementById('calendarioStats').innerHTML = `Mostrando 100 de ${datos.length} episodios futuros (calendario mundial)`;
-    
-    episodios.sort((a, b) => new Date(a.airdate) - new Date(b.airdate));
-    
-    renderizarCalendarioMundial(episodios);
+    renderizarCalendarioMundial(filtrados.slice(0, MAX));
     
   } catch (error) {
     console.error('Error cargando calendario mundial:', error);
     ocultarLoader('calendarioContainer');
-    document.getElementById('calendarioContainer').innerHTML = '<p class="sin-resultados">Error al cargar el calendario mundial</p>';
-    document.getElementById('calendarioStats').innerHTML = 'Error';
+    container.innerHTML = '<p class="sin-resultados">Error al cargar el calendario mundial</p>';
+    statsEl.innerHTML = 'Error';
     mostrarNotificacion('Error al cargar el calendario mundial', 'error');
   }
 }
