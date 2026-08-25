@@ -2898,6 +2898,26 @@ async function guardarNuevaContrasenaUI() {
   mostrarNotificacion('✅ Contraseña actualizada. ¡Todo listo!', 'success');
 }
 
+function toggleCambiarPass() {
+  const wrap = document.getElementById('cambiarPassWrap');
+  if (!wrap) return;
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+}
+
+async function guardarCambioContrasena() {
+  if (!_sb || !_usuario) return;
+  const input = document.getElementById('nuevaPassInput');
+  const pass = input.value;
+  if (pass.length < 6) return mostrarNotificacion('Mínimo 6 caracteres', 'error');
+  
+  const { error } = await _sb.auth.updateUser({ password: pass });
+  if (error) return mostrarNotificacion(error.message, 'error');
+  
+  input.value = '';
+  toggleCambiarPass();
+  mostrarNotificacion('✅ Contraseña actualizada', 'success');
+}
+
 function refrescarUICuenta() {
   const noLogueado = document.getElementById('authNoLogueado');
   const logueado = document.getElementById('authLogueado');

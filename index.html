@@ -265,7 +265,16 @@
             <h3>☁️ Cuenta conectada</h3>
             <div class="alias-display" id="authEmailTxt">...</div>
             <p class="auth-sync" id="authSyncEstado">✅ Sincronizado</p>
-            <button class="btn-perfil btn-secundario" onclick="cerrarSesionUI()">Cerrar sesión</button>
+
+            <div class="auth-btns">
+              <button class="btn-perfil btn-secundario" onclick="toggleCambiarPass()">🔑 Cambiar contraseña</button>
+              <button class="btn-perfil btn-secundario" onclick="cerrarSesionUI()">Cerrar sesión</button>
+            </div>
+
+            <div id="cambiarPassWrap" style="display:none; margin-top:0.8rem;">
+              <input type="password" id="nuevaPassInput" class="alias-input auth-input" placeholder="Nueva contraseña (mín. 6)" autocomplete="new-password">
+              <button class="btn-perfil" onclick="guardarCambioContrasena()">Guardar nueva contraseña</button>
+            </div>
           </div>
         </div>
 
