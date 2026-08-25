@@ -3,12 +3,13 @@
 // Cache inteligente: HTML siempre fresco (network-first),
 // estáticos en cache-first, API en network-first con fallback.
 // ============================================
-const CACHE = 'seriesmazinger-v1';
+const CACHE = 'seriesmazinger-v3';
 const CORE = [
   '/',
   '/index.html',
   '/style.css',
   '/script.js',
+  '/supabase-config.js',
   '/manifest.webmanifest',
   '/icon.svg'
 ];
@@ -57,17 +58,16 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Estáticos del mismo origen: cache-first
+  // Estáticos del mismo origen: NETWORK-FIRST (el código siempre actualizado,
+  // la caché solo actúa como respaldo offline). Los archivos cambian sin cambiar
+  // de nombre, así que cache-first serviría versiones viejas para siempre.
   if (url.origin === self.location.origin) {
     e.respondWith(
-      caches.match(req).then((cached) =>
-        cached || fetch(req).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-          return res;
-        }).catch(() => caches.match('/index.html'))
-      )
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+        return res;
+      }).catch(() => caches.match(req))
     );
-    return;
   }
 });

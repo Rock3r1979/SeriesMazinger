@@ -858,6 +858,47 @@ select option {
 
 .perfil-container > h2 { font-size: 1.5rem; font-weight: 800; margin-bottom: 1.2rem; }
 
+/* Tarjeta de cuenta / sincronización */
+.auth-card {
+  background: linear-gradient(165deg, rgba(231, 76, 60, 0.10), var(--surface) 60%);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  border-radius: var(--r-lg);
+  padding: 1.4rem 1.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.auth-card h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.auth-nota {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.auth-input {
+  width: 100%;
+  flex: none;
+  margin-bottom: 0.7rem;
+}
+
+.auth-btns {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.auth-btns .btn-perfil { flex: 1; min-width: 130px; }
+
+.auth-sync {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
 .perfil-card {
   background: var(--surface);
   border: 1px solid var(--border);

@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   comprobarRecordatorios();
   initModales();
+  inicializarAuth();
   
   if (esAndroid) {
     configurarManejadorAndroid();
@@ -943,6 +944,7 @@ function puntuarItem(item, puntuacion) {
   guardarListas(listas);
   
   dibujarEstrellas(item);
+  colaSubida('puntuaciones');
   actualizarStatsPerfil();
   mostrarNotificacion(`Puntuación: ${puntuacion} estrellas`, 'success');
 }
@@ -996,6 +998,7 @@ function marcarComoVisto() {
     sincronizarBadgesVisto(itemActual.id, false);
   }
   
+  colaSubida('vistos');
   actualizarStatsPerfil();
 }
 
@@ -1016,6 +1019,7 @@ function guardarListas(listas) {
   localStorage.setItem('listas', JSON.stringify(listas));
   const todasItems = listas.flatMap(l => l.items);
   localStorage.setItem('miLista', JSON.stringify(todasItems));
+  colaSubida('listas');
 }
 
 function crearLista() {
@@ -1476,6 +1480,7 @@ function guardarRecordatorio() {
   if (!recordatorios.some(r => r.id == nuevoRecordatorio.id)) {
     recordatorios.push(nuevoRecordatorio);
     localStorage.setItem('recordatorios', JSON.stringify(recordatorios));
+    colaSubida('recordatorios');
     actualizarStatsPerfil();
     mostrarNotificacion('⏰ Recordatorio guardado', 'success');
   } else {
@@ -1555,6 +1560,7 @@ function eliminarRecordatorio(id) {
   let recordatorios = JSON.parse(localStorage.getItem('recordatorios') || '[]');
   recordatorios = recordatorios.filter(r => r.id != id);
   localStorage.setItem('recordatorios', JSON.stringify(recordatorios));
+  colaSubida('recordatorios');
   actualizarStatsPerfil();
   if (recordatorios.length === 0) {
     cerrarModalRecordatorios();
@@ -2202,6 +2208,7 @@ function renderAvatarSelector() {
       }
       localStorage.setItem('avatarEmoji', emoji);
       localStorage.removeItem('avatarCustom');
+      subirPerfilNube();
       
       const span = document.getElementById('avatarEmoji');
       const img = document.getElementById('avatarPreview');
@@ -2249,6 +2256,7 @@ function subirAvatarImagen(event) {
   const reader = new FileReader();
   reader.onload = e => {
     localStorage.setItem('avatarCustom', e.target.result);
+    subirPerfilNube();
     
     const img = document.getElementById('avatarPreview');
     const span = document.getElementById('avatarEmoji');
@@ -2279,6 +2287,7 @@ function guardarAlias() {
   
   aliasActual = alias;
   localStorage.setItem('alias', alias);
+  subirPerfilNube();
   
   document.getElementById('aliasActualDisplay').textContent = alias;
   document.getElementById('aliasInput').value = '';
@@ -2301,6 +2310,7 @@ function guardarBio() {
   
   const bio = document.getElementById('bioInput').value.trim();
   localStorage.setItem('bio', bio);
+  subirPerfilNube();
   mostrarNotificacion('Bio guardada', 'success');
 }
 
@@ -2747,3 +2757,262 @@ async function abrirModalTVMaze(show) {
 
 // Inicializar calendario
 inicializarCalendario();
+
+// ============================================
+// CUENTA Y SINCRONIZACIÓN EN LA NUBE (Supabase)
+// ============================================
+let _usuario = null;
+let _subidasPendientes = new Set();
+let _timerSubida = null;
+
+function setEstadoSync(texto) {
+  const el = document.getElementById('authSyncEstado');
+  if (el) el.textContent = texto;
+}
+
+function inicializarAuth() {
+  if (!_sb) {
+    console.warn('Supabase no disponible (sin conexión o CDN bloqueado)');
+    return;
+  }
+  
+  _sb.auth.getSession().then(({ data }) => {
+    if (data && data.session && data.session.user) {
+      aplicarSesion(data.session.user);
+    } else {
+      refrescarUICuenta();
+    }
+  });
+  
+  _sb.auth.onAuthStateChange((evento, sesion) => {
+    if (evento === 'SIGNED_IN' && sesion && sesion.user && (!_usuario || _usuario.id !== sesion.user.id)) {
+      aplicarSesion(sesion.user);
+    } else if (evento === 'SIGNED_OUT') {
+      _usuario = null;
+      refrescarUICuenta();
+    }
+  });
+}
+
+function aplicarSesion(usuario) {
+  _usuario = usuario;
+  refrescarUICuenta();
+  mostrarNotificacion(`👋 Hola de nuevo`, 'success');
+  bajarEstadoInicial();
+}
+
+async function iniciarSesionUI() {
+  if (!_sb) return;
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const btn = document.getElementById('btnEntrar');
+  
+  if (!email.includes('@')) return mostrarNotificacion('Email no válido', 'error');
+  if (pass.length < 6) return mostrarNotificacion('La contraseña debe tener al menos 6 caracteres', 'error');
+  
+  btn.disabled = true;
+  const { error } = await _sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false;
+  
+  if (error) {
+    mostrarNotificacion(error.message === 'Invalid login credentials'
+      ? 'Email o contraseña incorrectos'
+      : error.message, 'error');
+    return;
+  }
+  // onAuthStateChange dispara la sincronización
+}
+
+async function registrarCuentaUI() {
+  if (!_sb) return;
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const btn = document.getElementById('btnCrearCuenta');
+  
+  if (!email.includes('@')) return mostrarNotificacion('Email no válido', 'error');
+  if (pass.length < 6) return mostrarNotificacion('La contraseña debe tener al menos 6 caracteres', 'error');
+  
+  btn.disabled = true;
+  const { data, error } = await _sb.auth.signUp({ email, password: pass });
+  btn.disabled = false;
+  
+  if (error) return mostrarNotificacion(error.message, 'error');
+  
+  if (data.user && !data.session) {
+    mostrarNotificacion('📧 Revisa tu correo y confirma la cuenta para entrar', 'info');
+  }
+  // Si devuelve sesión, onAuthStateChange sincroniza solo
+}
+
+async function cerrarSesionUI() {
+  if (!_sb) return;
+  await vaciarColaSubida();
+  await _sb.auth.signOut();
+  _usuario = null;
+  refrescarUICuenta();
+  mostrarNotificacion('Sesión cerrada. Tus datos siguen en este dispositivo.', 'info');
+}
+
+function refrescarUICuenta() {
+  const noLogueado = document.getElementById('authNoLogueado');
+  const logueado = document.getElementById('authLogueado');
+  if (!noLogueado || !logueado) return;
+  
+  if (_usuario) {
+    noLogueado.style.display = 'none';
+    logueado.style.display = 'block';
+    const emailEl = document.getElementById('authEmailTxt');
+    if (emailEl) emailEl.textContent = _usuario.email || 'Cuenta conectada';
+  } else {
+    noLogueado.style.display = 'block';
+    logueado.style.display = 'none';
+  }
+}
+
+// ---------- Subida con debounce ----------
+function colaSubida(clave) {
+  if (!_usuario || !_sb) return;
+  _subidasPendientes.add(clave);
+  clearTimeout(_timerSubida);
+  _timerSubida = setTimeout(vaciarColaSubida, 1500);
+}
+
+async function vaciarColaSubida() {
+  if (!_usuario || !_sb) return;
+  const claves = [..._subidasPendientes];
+  _subidasPendientes.clear();
+  if (!claves.length) return;
+  
+  for (const clave of claves) {
+    let datos;
+    if (clave === 'listas') datos = getListas();
+    else datos = JSON.parse(localStorage.getItem(clave) || 'null');
+    
+    try {
+      const { error } = await _sb.from('datos_usuario').upsert({
+        usuario_id: _usuario.id,
+        clave,
+        datos: datos === null ? [] : datos,
+        actualizado: new Date().toISOString()
+      });
+      if (error) console.error('Error subiendo ' + clave, error);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  
+  if (claves.length) setEstadoSync('☁️ Guardado en la nube');
+}
+
+// ---------- Perfil en la nube ----------
+async function subirPerfilNube() {
+  if (!_usuario || !_sb) return;
+  try {
+    await _sb.from('perfiles').upsert({
+      id: _usuario.id,
+      alias: localStorage.getItem('alias') || null,
+      bio: localStorage.getItem('bio') || null,
+      avatar: localStorage.getItem('avatarCustom') || localStorage.getItem('avatarEmoji') || null,
+      actualizado: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error('Error subiendo perfil', e);
+  }
+}
+
+// ---------- Descarga inicial + fusión ----------
+async function bajarEstadoInicial() {
+  if (!_sb || !_usuario) return;
+  setEstadoSync('⏳ Sincronizando...');
+  
+  const { data, error } = await _sb.from('datos_usuario').select('clave,datos');
+  if (error) {
+    console.error(error);
+    setEstadoSync('⚠️ Error al sincronizar');
+    return;
+  }
+  
+  const nube = {};
+  (data || []).forEach(fila => { nube[fila.clave] = fila.datos; });
+  
+  // --- LISTAS: fusión por id de lista + items ---
+  const listasLocales = getListas();
+  const listasNube = Array.isArray(nube.listas) ? nube.listas : [];
+  let listasFinal;
+  if (!listasNube.length) listasFinal = listasLocales;
+  else if (!listasLocales.length) listasFinal = listasNube;
+  else listasFinal = fusionarListas(listasLocales, listasNube);
+  
+  localStorage.setItem('listas', JSON.stringify(listasFinal));
+  localStorage.setItem('miLista', JSON.stringify(listasFinal.flatMap(l => l.items)));
+  
+  // --- VISTOS: unión ---
+  const vistosLocales = (JSON.parse(localStorage.getItem('vistos') || '[]')).map(Number);
+  const vistosNube = (Array.isArray(nube.vistos) ? nube.vistos : []).map(Number);
+  const vistosFinal = [...new Set([...vistosLocales, ...vistosNube])];
+  localStorage.setItem('vistos', JSON.stringify(vistosFinal));
+  
+  // --- PUNTUACIONES: la mayor gana ---
+  const puntLocal = JSON.parse(localStorage.getItem('puntuaciones') || '{}');
+  const puntNube = (nube.puntuaciones && typeof nube.puntuaciones === 'object') ? nube.puntuaciones : {};
+  const puntuacionesFinal = { ...puntNube };
+  Object.keys(puntLocal).forEach(k => {
+    if (!(k in puntuacionesFinal) || Number(puntLocal[k]) > Number(puntuacionesFinal[k])) {
+      puntuacionesFinal[k] = puntLocal[k];
+    }
+  });
+  localStorage.setItem('puntuaciones', JSON.stringify(puntuacionesFinal));
+  
+  // --- RECORDATORIOS: unión por id ---
+  const recsLocales = JSON.parse(localStorage.getItem('recordatorios') || '[]');
+  const recsNube = Array.isArray(nube.recordatorios) ? nube.recordatorios : [];
+  const mapaRecs = new Map(recsNube.map(r => [String(r.id), r]));
+  recsLocales.forEach(r => mapaRecs.set(String(r.id), r));
+  localStorage.setItem('recordatorios', JSON.stringify([...mapaRecs.values()]));
+  
+  // Dejar la nube igualada con el resultado fusionado
+  ['listas', 'vistos', 'puntuaciones', 'recordatorios'].forEach(c => colaSubida(c));
+  await vaciarColaSubida();
+  
+  // Adoptar perfil de la nube si aquí está vacío
+  try {
+    const { data: perfil } = await _sb.from('perfiles').select('*').eq('id', _usuario.id).maybeSingle();
+    if (perfil) {
+      if (perfil.alias && !localStorage.getItem('alias')) {
+        aliasActual = perfil.alias;
+        localStorage.setItem('alias', perfil.alias);
+        actualizarDisplayAlias();
+      }
+      if (perfil.bio && !localStorage.getItem('bio')) {
+        localStorage.setItem('bio', perfil.bio);
+        cargarBio();
+      }
+    }
+  } catch {}
+  
+  // Refrescar interfaz
+  actualizarStatsPerfil();
+  renderListas();
+  comprobarRecordatorios();
+  setEstadoSync('✅ Sincronizado');
+}
+
+function fusionarListas(locales, nube) {
+  const mapa = new Map(nube.map(l => [String(l.id), l]));
+  
+  locales.forEach(local => {
+    const existente = mapa.get(String(local.id));
+    if (!existente) {
+      mapa.set(String(local.id), local);
+    } else {
+      // Fusionar items por id
+      const idsNube = new Set(existente.items.map(i => String(i.id)));
+      local.items.forEach(item => {
+        if (!idsNube.has(String(item.id))) existente.items.push(item);
+      });
+      existente.nombre = local.nombre || existente.nombre;
+    }
+  });
+  
+  return [...mapa.values()];
+}

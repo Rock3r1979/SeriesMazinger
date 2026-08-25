@@ -236,6 +236,28 @@
     <section id="perfil" class="seccion">
       <div class="perfil-container">
         <h2>Tu perfil</h2>
+
+        <!-- CUENTA / SINCRONIZACIÓN -->
+        <div class="auth-card" id="authCard">
+          <div id="authNoLogueado">
+            <h3>☁️ Crea tu cuenta o inicia sesión</h3>
+            <p class="auth-nota">Tus listas, vistos y recordatorios se sincronizan entre todos tus dispositivos.</p>
+            <input type="email" id="authEmail" class="alias-input auth-input" placeholder="tu@email.com" autocomplete="email">
+            <input type="password" id="authPass" class="alias-input auth-input" placeholder="Contraseña (mín. 6 caracteres)" autocomplete="current-password">
+            <div class="auth-btns">
+              <button class="btn-perfil" id="btnEntrar" onclick="iniciarSesionUI()">Entrar</button>
+              <button class="btn-perfil btn-secundario" id="btnCrearCuenta" onclick="registrarCuentaUI()">Crear cuenta</button>
+            </div>
+          </div>
+
+          <div id="authLogueado" style="display:none">
+            <h3>☁️ Cuenta conectada</h3>
+            <div class="alias-display" id="authEmailTxt">...</div>
+            <p class="auth-sync" id="authSyncEstado">✅ Sincronizado</p>
+            <button class="btn-perfil btn-secundario" onclick="cerrarSesionUI()">Cerrar sesión</button>
+          </div>
+        </div>
+
         <div class="perfil-card">
           <div class="perfil-avatar">
             <div class="avatar-wrap">
@@ -403,6 +425,8 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabase-config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
